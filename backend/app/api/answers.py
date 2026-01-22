@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models import InterviewAnswer, ResumeAnalysis, User
 from app.schemas import GenerateAnswerRequest, InterviewAnswerRead
+from app.agents.job_assistant import generate_interview_answer
 
 router = APIRouter(
     prefix="/api",
@@ -12,26 +13,6 @@ router = APIRouter(
 )
 
 logger = logging.getLogger("ai_job_assistant.answers")
-
-
-def _simple_answer(
-    question: str,
-    job_title: str | None,
-    company_name: str | None,
-) -> str:
-    parts: list[str] = [f"Question: {question}"]
-
-    if job_title:
-        parts.append(f"Target role: {job_title}")
-    if company_name:
-        parts.append(f"Company: {company_name}")
-
-    parts.append(
-        "This is a placeholder answer for development purposes, "
-        "not a final AI-generated response."
-    )
-
-    return " | ".join(parts)
 
 
 @router.post(
@@ -69,7 +50,7 @@ def generate_answer(
                 detail="Resume analysis not found.",
             )
 
-    answer_text = _simple_answer(
+    answer_text = generate_interview_answer(
         question=payload.question,
         job_title=payload.job_title,
         company_name=payload.company_name,

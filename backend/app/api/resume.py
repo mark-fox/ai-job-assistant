@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models import ResumeAnalysis, User
 from app.schemas import ResumeAnalyzeRequest, ResumeAnalysisRead
+from app.agents.job_assistant import summarize_resume
 
 router = APIRouter(
     prefix="/api/resume",
@@ -12,16 +13,6 @@ router = APIRouter(
 )
 
 logger = logging.getLogger("ai_job_assistant.resume")
-
-def _simple_resume_summary(resume_text: str) -> str:
-    lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
-    word_count = len(resume_text.split())
-    line_count = len(lines)
-
-    return (
-        f"Basic analysis only. Approximate word count: {word_count}. "
-        f"Non-empty line count: {line_count}."
-    )
 
 
 @router.post(
@@ -41,7 +32,7 @@ def analyze_resume(
             detail="User not found.",
         )
 
-    summary = _simple_resume_summary(payload.resume_text)
+    summary = summarize_resume(payload.resume_text)
 
     analysis = ResumeAnalysis(
         user_id=payload.user_id,
