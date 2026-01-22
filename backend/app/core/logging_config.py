@@ -2,14 +2,12 @@ import logging
 import os
 from logging.config import dictConfig
 
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_DIR = os.getenv("LOG_DIR", "logs")
+from app.core.config import settings
 
 
 def setup_logging() -> None:
-    os.makedirs(LOG_DIR, exist_ok=True)
-    log_path = os.path.join(LOG_DIR, "app.log")
+    os.makedirs(settings.log_dir, exist_ok=True)
+    log_path = os.path.join(settings.log_dir, "app.log")
 
     dictConfig(
         {
@@ -25,17 +23,17 @@ def setup_logging() -> None:
                 "console": {
                     "class": "logging.StreamHandler",
                     "formatter": "default",
-                    "level": LOG_LEVEL,
+                    "level": settings.log_level,
                 },
                 "file": {
                     "class": "logging.FileHandler",
                     "filename": log_path,
                     "formatter": "default",
-                    "level": LOG_LEVEL,
+                    "level": settings.log_level,
                 },
             },
             "root": {
-                "level": LOG_LEVEL,
+                "level": settings.log_level,
                 "handlers": ["console", "file"],
             },
         }
