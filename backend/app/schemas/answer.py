@@ -1,14 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class GenerateAnswerRequest(BaseModel):
     user_id: int | None = None
     resume_analysis_id: int | None = None
-    question: str
-    job_title: str | None = None
-    company_name: str | None = None
+    question: str = Field(min_length=5)
+    job_title: str | None = Field(default=None, max_length=100)
+    company_name: str | None = Field(default=None, max_length=100)
 
 
 class InterviewAnswerRead(BaseModel):

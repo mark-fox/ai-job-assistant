@@ -1,5 +1,7 @@
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -29,8 +31,16 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserRead:
         full_name=user_in.full_name,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.commit()
+        db.refresh(user)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("failed to create user email=%s error=%s", user_in.email, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create user.",
+        )
 
     logger.info("created user id=%s email=%s", user.id, user.email)
     return user

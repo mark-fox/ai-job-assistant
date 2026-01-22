@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ResumeAnalyzeRequest(BaseModel):
     user_id: int | None = None
-    resume_text: str
+    resume_text: str = Field(min_length=20)
 
 
 class ResumeAnalysisRead(BaseModel):

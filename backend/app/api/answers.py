@@ -1,11 +1,13 @@
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.agents.job_assistant import generate_interview_answer
 from app.core.db import get_db
 from app.models import InterviewAnswer, ResumeAnalysis, User
 from app.schemas import GenerateAnswerRequest, InterviewAnswerRead
-from app.agents.job_assistant import generate_interview_answer
 
 router = APIRouter(
     prefix="/api",
@@ -34,6 +36,7 @@ def generate_answer(
                 detail="User not found.",
             )
 
+    resume_analysis = None
     if payload.resume_analysis_id is not None:
         resume_analysis = (
             db.query(ResumeAnalysis)
@@ -66,8 +69,21 @@ def generate_answer(
     )
 
     db.add(interview_answer)
-    db.commit()
-    db.refresh(interview_answer)
+    try:
+        db.commit()
+        db.refresh(interview_answer)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error(
+            "failed to generate answer user_id=%s resume_analysis_id=%s error=%s",
+            payload.user_id,
+            payload.resume_analysis_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate interview answer.",
+        )
 
     logger.info(
         "generated interview answer id=%s user_id=%s resume_analysis_id=%s",

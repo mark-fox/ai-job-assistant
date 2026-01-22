@@ -1,11 +1,13 @@
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.agents.job_assistant import summarize_resume
 from app.core.db import get_db
 from app.models import ResumeAnalysis, User
 from app.schemas import ResumeAnalyzeRequest, ResumeAnalysisRead
-from app.agents.job_assistant import summarize_resume
 
 router = APIRouter(
     prefix="/api/resume",
@@ -25,12 +27,14 @@ def analyze_resume(
     db: Session = Depends(get_db),
 ) -> ResumeAnalysisRead:
     user = None
-    if payload.user_id is not None and not user:
-        logger.warning("resume analysis for missing user_id=%s", payload.user_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
+    if payload.user_id is not None:
+        user = db.query(User).filter(User.id == payload.user_id).first()
+        if not user:
+            logger.warning("resume analysis for missing user_id=%s", payload.user_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found.",
+            )
 
     summary = summarize_resume(payload.resume_text)
 
@@ -40,9 +44,20 @@ def analyze_resume(
         summary=summary,
     )
     db.add(analysis)
-    db.commit()
-    db.refresh(analysis)
+    try:
+        db.commit()
+        db.refresh(analysis)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error(
+            "failed to create resume analysis user_id=%s error=%s",
+            payload.user_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not analyze resume.",
+        )
 
     logger.info("created resume analysis id=%s user_id=%s", analysis.id, analysis.user_id)
-
     return analysis
