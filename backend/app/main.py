@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.users import router as users_router
+from app.api.resume import router as resume_router
 from app.core.db import Base, engine
 
 app = FastAPI(
@@ -11,6 +12,7 @@ app = FastAPI(
 Base.metadata.create_all(bind=engine)
 
 app.include_router(users_router)
+app.include_router(resume_router)
 
 
 @app.get("/status")
