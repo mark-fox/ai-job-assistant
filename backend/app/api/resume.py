@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ router = APIRouter(
     tags=["resume"],
 )
 
+logger = logging.getLogger("ai_job_assistant.resume")
 
 def _simple_resume_summary(resume_text: str) -> str:
     lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
@@ -32,13 +34,12 @@ def analyze_resume(
     db: Session = Depends(get_db),
 ) -> ResumeAnalysisRead:
     user = None
-    if payload.user_id is not None:
-        user = db.query(User).filter(User.id == payload.user_id).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found.",
-            )
+    if payload.user_id is not None and not user:
+        logger.warning("resume analysis for missing user_id=%s", payload.user_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
 
     summary = _simple_resume_summary(payload.resume_text)
 
@@ -50,5 +51,7 @@ def analyze_resume(
     db.add(analysis)
     db.commit()
     db.refresh(analysis)
+
+    logger.info("created resume analysis id=%s user_id=%s", analysis.id, analysis.user_id)
 
     return analysis

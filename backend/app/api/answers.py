@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,8 @@ router = APIRouter(
     prefix="/api",
     tags=["answers"],
 )
+
+logger = logging.getLogger("ai_job_assistant.answers")
 
 
 def _simple_answer(
@@ -44,12 +47,12 @@ def generate_answer(
     if payload.user_id is not None:
         user = db.query(User).filter(User.id == payload.user_id).first()
         if not user:
+            logger.warning("generate answer for missing user_id=%s", payload.user_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found.",
             )
 
-    resume_analysis = None
     if payload.resume_analysis_id is not None:
         resume_analysis = (
             db.query(ResumeAnalysis)
@@ -57,6 +60,10 @@ def generate_answer(
             .first()
         )
         if not resume_analysis:
+            logger.warning(
+                "generate answer for missing resume_analysis_id=%s",
+                payload.resume_analysis_id,
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Resume analysis not found.",
@@ -80,5 +87,12 @@ def generate_answer(
     db.add(interview_answer)
     db.commit()
     db.refresh(interview_answer)
+
+    logger.info(
+        "generated interview answer id=%s user_id=%s resume_analysis_id=%s",
+        interview_answer.id,
+        interview_answer.user_id,
+        interview_answer.resume_analysis_id,
+    )
 
     return interview_answer

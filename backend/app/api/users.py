@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,11 +11,14 @@ router = APIRouter(
     tags=["users"],
 )
 
+logger = logging.getLogger("ai_job_assistant.users")
+
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserRead:
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing:
+        logger.warning("attempt to create duplicate user email=%s", user_in.email)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User with this email already exists.",
@@ -27,6 +31,8 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserRead:
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    logger.info("created user id=%s email=%s", user.id, user.email)
     return user
 
 
@@ -34,6 +40,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserRead:
 def get_user(user_id: int, db: Session = Depends(get_db)) -> UserRead:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
+        logger.warning("user not found id=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found.",
