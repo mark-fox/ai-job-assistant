@@ -1,6 +1,7 @@
 import time
 
 from fastapi import FastAPI
+from sqlalchemy import text
 from starlette.requests import Request
 
 from app.api.users import router as users_router
@@ -42,4 +43,21 @@ async def request_logging_middleware(request: Request, call_next):
 
 @app.get("/status")
 def get_status():
-    return {"status": "ok"}
+    db_ok = False
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as exc:
+        logger.error("database health check failed: %s", exc)
+
+    overall_status = "ok" if db_ok else "degraded"
+
+    return {
+        "status": overall_status,
+        "version": app.version,
+        "checks": {
+            "database": "ok" if db_ok else "error",
+        },
+    }
