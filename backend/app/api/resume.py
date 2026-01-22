@@ -61,3 +61,25 @@ def analyze_resume(
 
     logger.info("created resume analysis id=%s user_id=%s", analysis.id, analysis.user_id)
     return analysis
+
+
+@router.get(
+    "/{analysis_id}",
+    response_model=ResumeAnalysisRead,
+)
+def get_resume_analysis(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+) -> ResumeAnalysisRead:
+    analysis = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id)
+        .first()
+    )
+    if not analysis:
+        logger.warning("resume analysis not found id=%s", analysis_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume analysis not found.",
+        )
+    return analysis

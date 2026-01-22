@@ -93,3 +93,25 @@ def generate_answer(
     )
 
     return interview_answer
+
+
+@router.get(
+    "/answers/{answer_id}",
+    response_model=InterviewAnswerRead,
+)
+def get_answer(
+    answer_id: int,
+    db: Session = Depends(get_db),
+) -> InterviewAnswerRead:
+    answer = (
+        db.query(InterviewAnswer)
+        .filter(InterviewAnswer.id == answer_id)
+        .first()
+    )
+    if not answer:
+        logger.warning("interview answer not found id=%s", answer_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview answer not found.",
+        )
+    return answer
