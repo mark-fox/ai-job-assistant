@@ -10,6 +10,9 @@ function App() {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [question, setQuestion] = useState("");
+  const [generatedAnswer, setGeneratedAnswer] = useState<string | null>(null);
+  const [answerLoading, setAnswerLoading] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
 
   const handleClearResume = () => {
     setResumeText("");
@@ -56,6 +59,51 @@ function App() {
       setResumeError("Network error while analyzing resume.");
     } finally {
       setResumeLoading(false);
+    }
+  };
+
+  const handleGenerateAnswer = async () => {
+    setAnswerError(null);
+    setGeneratedAnswer(null);
+
+    if (!question.trim()) {
+      setAnswerError("Interview question is required.");
+      return;
+    }
+
+    setAnswerLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/generate/answer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: null,
+          resume_analysis_id: null,
+          question,
+          job_title: jobTitle || null,
+          company_name: companyName || null,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 422) {
+          setAnswerError("Question must be at least 5 characters.");
+        } else if (response.status === 404) {
+          setAnswerError("Related user or resume analysis was not found.");
+        } else {
+          setAnswerError("Failed to generate answer. Please try again.");
+        }
+        return;
+      }
+
+      const data = await response.json();
+      setGeneratedAnswer(data.answer ?? "No answer returned.");
+    } catch (error) {
+      setAnswerError("Network error while generating answer.");
+    } finally {
+      setAnswerLoading(false);
     }
   };
 
@@ -171,12 +219,18 @@ function App() {
             />
           </div>
 
+          {answerError && (
+            <p className="mt-2 text-xs text-red-600">{answerError}</p>
+          )}
+
           <div className="mt-3 flex justify-end">
             <button
               type="button"
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+              className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              onClick={handleGenerateAnswer}
+              disabled={answerLoading}
             >
-              Generate answer
+              {answerLoading ? "Generating..." : "Generate answer"}
             </button>
           </div>
 
@@ -185,7 +239,7 @@ function App() {
               Generated answer
             </p>
             <p className="text-sm text-slate-800">
-              The generated interview answer will appear here.
+              {generatedAnswer ?? "The generated interview answer will appear here."}
             </p>
           </div>
         </section>
