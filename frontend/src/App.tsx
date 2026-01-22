@@ -1,4 +1,64 @@
+import { useState } from "react";
+import { API_BASE_URL } from "./config";
+
 function App() {
+  const [resumeText, setResumeText] = useState("");
+  const [resumeSummary, setResumeSummary] = useState<string | null>(null);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+
+  const [jobTitle, setJobTitle] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [question, setQuestion] = useState("");
+
+  const handleClearResume = () => {
+    setResumeText("");
+    setResumeSummary(null);
+    setResumeError(null);
+  };
+
+  const handleAnalyzeResume = async () => {
+    setResumeError(null);
+    setResumeSummary(null);
+
+    if (!resumeText.trim()) {
+      setResumeError("Resume text is required.");
+      return;
+    }
+
+    setResumeLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/resume/analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: null,
+          resume_text: resumeText,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 422) {
+          setResumeError("Resume text must be at least 20 characters.");
+        } else if (response.status === 404) {
+          setResumeError("User not found for this request.");
+        } else {
+          setResumeError("Failed to analyze resume. Please try again.");
+        }
+        return;
+      }
+
+      const data = await response.json();
+      setResumeSummary(data.summary ?? "No summary returned.");
+    } catch (error) {
+      setResumeError("Network error while analyzing resume.");
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-200 text-slate-950">
       <header className="border-b border-slate-200 bg-white">
@@ -23,27 +83,44 @@ function App() {
             Resume analysis
           </h2>
           <p className="mb-4 text-sm text-slate-700">
-            Paste a resume to analyze it and store the result for later interview
-            answers.
+            Paste a resume to analyze it and store the result for later
+            interview answers.
           </p>
           <textarea
             className="h-48 w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             placeholder="Paste resume text here..."
+            value={resumeText}
+            onChange={(e) => setResumeText(e.target.value)}
           />
+          {resumeError && (
+            <p className="mt-2 text-xs text-red-600">{resumeError}</p>
+          )}
           <div className="mt-3 flex justify-end gap-2">
             <button
               type="button"
               className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+              onClick={handleClearResume}
+              disabled={resumeLoading}
             >
               Clear
             </button>
             <button
               type="button"
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+              className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              onClick={handleAnalyzeResume}
+              disabled={resumeLoading}
             >
-              Analyze resume
+              {resumeLoading ? "Analyzing..." : "Analyze resume"}
             </button>
           </div>
+          {resumeSummary && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Analysis summary
+              </p>
+              <p className="text-sm text-slate-800">{resumeSummary}</p>
+            </div>
+          )}
         </section>
 
         <section className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -64,6 +141,8 @@ function App() {
                 type="text"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 placeholder="Junior AI Engineer"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -74,6 +153,8 @@ function App() {
                 type="text"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 placeholder="Example Corp"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
               />
             </div>
           </div>
@@ -85,6 +166,8 @@ function App() {
             <textarea
               className="h-24 w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               placeholder="Tell me about yourself."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
             />
           </div>
 

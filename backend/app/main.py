@@ -3,6 +3,7 @@ import time
 from fastapi import FastAPI
 from sqlalchemy import text
 from starlette.requests import Request
+from starlette.middleware.cors import CORSMiddleware
 
 from app.api.users import router as users_router
 from app.api.resume import router as resume_router
@@ -16,6 +17,19 @@ logger = get_logger("ai_job_assistant.api")
 app = FastAPI(
     title="AI Job Assistant Backend",
     version="0.1.0",
+)
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 Base.metadata.create_all(bind=engine)
