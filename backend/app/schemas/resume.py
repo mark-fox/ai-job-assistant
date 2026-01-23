@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ResumeAnalyzeRequest(BaseModel):
@@ -9,11 +9,10 @@ class ResumeAnalyzeRequest(BaseModel):
 
 
 class ResumeAnalysisRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int | None
     resume_text: str
     summary: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True

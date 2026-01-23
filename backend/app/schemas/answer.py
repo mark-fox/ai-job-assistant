@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class GenerateAnswerRequest(BaseModel):
@@ -12,6 +12,8 @@ class GenerateAnswerRequest(BaseModel):
 
 
 class InterviewAnswerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int | None
     resume_analysis_id: int | None
@@ -20,6 +22,3 @@ class InterviewAnswerRead(BaseModel):
     company_name: str | None
     answer: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
