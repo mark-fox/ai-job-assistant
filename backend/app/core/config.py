@@ -8,6 +8,7 @@ class Settings:
     database_url: str
     log_level: str
     log_dir: str
+    llm_provider: str
 
 
 def load_settings() -> Settings:
@@ -16,6 +17,7 @@ def load_settings() -> Settings:
         database_url=os.getenv("DATABASE_URL", "sqlite:///./ai_job_assistant.db"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_dir=os.getenv("LOG_DIR", "logs"),
+        llm_provider=os.getenv("LLM_PROVIDER", "stub"),
     )
 
 
