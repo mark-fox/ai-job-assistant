@@ -10,3 +10,5 @@ def test_status_ok(client: TestClient):
     assert "version" in data
     assert "checks" in data
     assert "database" in data["checks"]
+    assert "environment" in data
+    assert "llm_provider" in data

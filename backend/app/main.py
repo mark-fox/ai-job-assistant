@@ -10,6 +10,7 @@ from app.api.resume import router as resume_router
 from app.api.answers import router as answers_router
 from app.core.db import Base, engine
 from app.core.logging_config import get_logger, setup_logging
+from app.core.config import settings
 
 setup_logging()
 logger = get_logger("ai_job_assistant.api")
@@ -71,6 +72,8 @@ def get_status():
     return {
         "status": overall_status,
         "version": app.version,
+        "environment": settings.app_env,
+        "llm_provider": settings.llm_provider,
         "checks": {
             "database": "ok" if db_ok else "error",
         },

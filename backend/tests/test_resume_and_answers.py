@@ -18,6 +18,7 @@ def test_analyze_resume_and_generate_answer(client: TestClient):
     resume_data = resume_resp.json()
     assert resume_data["id"] > 0
     assert "summary" in resume_data
+    assert resume_data["provider"] == "stub"
 
     analysis_id = resume_data["id"]
 
@@ -36,7 +37,7 @@ def test_analyze_resume_and_generate_answer(client: TestClient):
     assert answer_data["id"] > 0
     assert answer_data["resume_analysis_id"] == analysis_id
     assert "Tell me about yourself." in answer_data["answer"]
-
+    assert answer_data["provider"] == "stub"
 
 def test_generate_answer_validation_error(client: TestClient):
     short_question_resp = client.post(

@@ -8,6 +8,7 @@ from app.agents.job_assistant import summarize_resume
 from app.core.db import get_db
 from app.models import ResumeAnalysis, User
 from app.schemas import ResumeAnalyzeRequest, ResumeAnalysisRead
+from app.core.config import settings
 
 router = APIRouter(
     prefix="/api/resume",
@@ -60,7 +61,15 @@ def analyze_resume(
         )
 
     logger.info("created resume analysis id=%s user_id=%s", analysis.id, analysis.user_id)
-    return analysis
+
+    return ResumeAnalysisRead(
+        id=analysis.id,
+        user_id=analysis.user_id,
+        resume_text=analysis.resume_text,
+        summary=analysis.summary,
+        created_at=analysis.created_at,
+        provider=settings.llm_provider,
+    )
 
 
 @router.get(
@@ -82,4 +91,12 @@ def get_resume_analysis(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Resume analysis not found.",
         )
-    return analysis
+    return ResumeAnalysisRead(
+        id=analysis.id,
+        user_id=analysis.user_id,
+        resume_text=analysis.resume_text,
+        summary=analysis.summary,
+        created_at=analysis.created_at,
+        provider=settings.llm_provider,
+    )
+

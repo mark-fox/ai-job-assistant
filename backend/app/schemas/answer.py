@@ -22,3 +22,4 @@ class InterviewAnswerRead(BaseModel):
     company_name: str | None
     answer: str
     created_at: datetime
+    provider: str

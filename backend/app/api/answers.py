@@ -8,6 +8,7 @@ from app.agents.job_assistant import generate_interview_answer
 from app.core.db import get_db
 from app.models import InterviewAnswer, ResumeAnalysis, User
 from app.schemas import GenerateAnswerRequest, InterviewAnswerRead
+from app.core.config import settings
 
 router = APIRouter(
     prefix="/api",
@@ -106,7 +107,18 @@ def generate_answer(
         interview_answer.resume_analysis_id,
     )
 
-    return interview_answer
+    return InterviewAnswerRead(
+        id=interview_answer.id,
+        user_id=interview_answer.user_id,
+        resume_analysis_id=interview_answer.resume_analysis_id,
+        question=interview_answer.question,
+        job_title=interview_answer.job_title,
+        company_name=interview_answer.company_name,
+        answer=interview_answer.answer,
+        created_at=interview_answer.created_at,
+        provider=settings.llm_provider,
+    )
+
 
 
 @router.get(
@@ -128,4 +140,15 @@ def get_answer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Interview answer not found.",
         )
-    return answer
+    return InterviewAnswerRead(
+        id=answer.id,
+        user_id=answer.user_id,
+        resume_analysis_id=answer.resume_analysis_id,
+        question=answer.question,
+        job_title=answer.job_title,
+        company_name=answer.company_name,
+        answer=answer.answer,
+        created_at=answer.created_at,
+        provider=settings.llm_provider,
+    )
+

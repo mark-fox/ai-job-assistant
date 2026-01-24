@@ -16,3 +16,4 @@ class ResumeAnalysisRead(BaseModel):
     resume_text: str
     summary: str
     created_at: datetime
+    provider: str
