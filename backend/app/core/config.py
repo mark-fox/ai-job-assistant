@@ -9,6 +9,8 @@ class Settings:
     log_level: str
     log_dir: str
     llm_provider: str
+    openai_api_key: str | None
+    openai_model: str
 
 
 def load_settings() -> Settings:
@@ -18,6 +20,8 @@ def load_settings() -> Settings:
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_dir=os.getenv("LOG_DIR", "logs"),
         llm_provider=os.getenv("LLM_PROVIDER", "stub"),
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     )
 
 

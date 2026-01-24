@@ -19,7 +19,7 @@ def summarize_resume(resume_text: str) -> str:
         return _summarize_resume_stub(resume_text)
 
     if provider is LLMProvider.OPENAI:
-        return _summarize_resume_stub(resume_text)
+        return _summarize_resume_openai(resume_text)
 
     logger.warning("unknown llm provider %s, falling back to stub", settings.llm_provider)
     return _summarize_resume_stub(resume_text)
@@ -40,7 +40,7 @@ def generate_interview_answer(
         )
 
     if provider is LLMProvider.OPENAI:
-        return _generate_interview_answer_stub(
+        return _generate_interview_answer_openai(
             question=question,
             job_title=job_title,
             company_name=company_name,
@@ -91,3 +91,51 @@ def _generate_interview_answer_stub(
     )
 
     return " | ".join(parts)
+
+
+def _summarize_resume_openai(resume_text: str) -> str:
+    if not settings.openai_api_key:
+        logger.warning(
+            "OpenAI provider selected without API key; using stub summarization instead"
+        )
+        return _summarize_resume_stub(resume_text)
+
+    logger.info(
+        "OpenAI summarization requested with model=%s",
+        settings.openai_model,
+    )
+
+    # Placeholder: this is where an actual OpenAI API call would go.
+    # For now, keep behavior identical to the stub.
+    return _summarize_resume_stub(resume_text)
+
+
+def _generate_interview_answer_openai(
+    question: str,
+    job_title: Optional[str],
+    company_name: Optional[str],
+) -> str:
+    if not settings.openai_api_key:
+        logger.warning(
+            "OpenAI provider selected without API key; using stub answer generation instead"
+        )
+        return _generate_interview_answer_stub(
+            question=question,
+            job_title=job_title,
+            company_name=company_name,
+        )
+
+    logger.info(
+        "OpenAI answer generation requested model=%s job_title=%s company_name=%s",
+        settings.openai_model,
+        job_title,
+        company_name,
+    )
+
+    # Placeholder: this is where an actual OpenAI API call would go.
+    # For now, keep behavior identical to the stub.
+    return _generate_interview_answer_stub(
+        question=question,
+        job_title=job_title,
+        company_name=company_name,
+    )
