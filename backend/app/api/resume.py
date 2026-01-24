@@ -1,6 +1,7 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -70,6 +71,36 @@ def analyze_resume(
         created_at=analysis.created_at,
         provider=settings.llm_provider,
     )
+
+
+@router.get(
+    "",
+    response_model=List[ResumeAnalysisRead],
+)
+def list_resume_analyses(
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> List[ResumeAnalysisRead]:
+    analyses = (
+        db.query(ResumeAnalysis)
+        .order_by(ResumeAnalysis.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        ResumeAnalysisRead(
+            id=a.id,
+            user_id=a.user_id,
+            resume_text=a.resume_text,
+            summary=a.summary,
+            created_at=a.created_at,
+            provider=settings.llm_provider,
+        )
+        for a in analyses
+    ]
 
 
 @router.get(

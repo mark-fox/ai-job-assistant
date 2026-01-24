@@ -104,3 +104,71 @@ def test_generate_answer_with_mismatched_user_and_resume(client: TestClient):
     assert answer_resp.status_code == 400
     data = answer_resp.json()
     assert data["detail"] == "Resume analysis does not belong to the specified user."
+
+
+def test_list_resume_analyses(client: TestClient):
+    resume_text = (
+        "Backend engineer with experience in Python and FastAPI. "
+        "Interested in AI and data-heavy applications."
+    )
+
+    create_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": None,
+            "resume_text": resume_text,
+        },
+    )
+    assert create_resp.status_code == 201
+
+    list_resp = client.get("/api/resume?limit=10&offset=0")
+    assert list_resp.status_code == 200
+
+    items = list_resp.json()
+    assert isinstance(items, list)
+    assert len(items) >= 1
+    first = items[0]
+    assert "id" in first
+    assert "summary" in first
+    assert first["provider"] == "stub"
+
+
+def test_list_answers(client: TestClient):
+    resume_text = (
+        "Software engineer with a focus on backend systems and testing. "
+        "Comfortable with Python, FastAPI, and SQL."
+    )
+
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": None,
+            "resume_text": resume_text,
+        },
+    )
+    assert resume_resp.status_code == 201
+    resume_data = resume_resp.json()
+    analysis_id = resume_data["id"]
+
+    answer_resp = client.post(
+        "/api/generate/answer",
+        json={
+            "user_id": None,
+            "resume_analysis_id": analysis_id,
+            "question": "What interests you about backend development?",
+            "job_title": "Backend Engineer",
+            "company_name": "Example Corp",
+        },
+    )
+    assert answer_resp.status_code == 201
+
+    list_resp = client.get("/api/answers?limit=10&offset=0")
+    assert list_resp.status_code == 200
+
+    items = list_resp.json()
+    assert isinstance(items, list)
+    assert len(items) >= 1
+    first = items[0]
+    assert "id" in first
+    assert "answer" in first
+    assert first["provider"] == "stub"
