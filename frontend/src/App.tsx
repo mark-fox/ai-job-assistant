@@ -1,9 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { API_BASE_URL } from "./config";
 
+type StatusResponse = {
+  status: string;
+  version: string;
+  environment: string;
+  llm_provider: string;
+  checks: {
+    database: string;
+  };
+};
+
 function App() {
+  const [appStatus, setAppStatus] = useState<StatusResponse | null>(null);
+  const [appStatusError, setAppStatusError] = useState<string | null>(null);
+
   const [resumeText, setResumeText] = useState("");
   const [resumeSummary, setResumeSummary] = useState<string | null>(null);
+  const [resumeProvider, setResumeProvider] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
 
@@ -11,18 +25,39 @@ function App() {
   const [companyName, setCompanyName] = useState("");
   const [question, setQuestion] = useState("");
   const [generatedAnswer, setGeneratedAnswer] = useState<string | null>(null);
+  const [answerProvider, setAnswerProvider] = useState<string | null>(null);
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/status`);
+        if (!response.ok) {
+          setAppStatusError("Unable to fetch backend status.");
+          return;
+        }
+        const data = (await response.json()) as StatusResponse;
+        setAppStatus(data);
+      } catch {
+        setAppStatusError("Unable to reach backend.");
+      }
+    };
+
+    fetchStatus();
+  }, []);
 
   const handleClearResume = () => {
     setResumeText("");
     setResumeSummary(null);
+    setResumeProvider(null);
     setResumeError(null);
   };
 
   const handleAnalyzeResume = async () => {
     setResumeError(null);
     setResumeSummary(null);
+    setResumeProvider(null);
 
     if (!resumeText.trim()) {
       setResumeError("Resume text is required.");
@@ -55,6 +90,7 @@ function App() {
 
       const data = await response.json();
       setResumeSummary(data.summary ?? "No summary returned.");
+      setResumeProvider(data.provider ?? null);
     } catch (error) {
       setResumeError("Network error while analyzing resume.");
     } finally {
@@ -65,6 +101,7 @@ function App() {
   const handleGenerateAnswer = async () => {
     setAnswerError(null);
     setGeneratedAnswer(null);
+    setAnswerProvider(null);
 
     if (!question.trim()) {
       setAnswerError("Interview question is required.");
@@ -100,6 +137,7 @@ function App() {
 
       const data = await response.json();
       setGeneratedAnswer(data.answer ?? "No answer returned.");
+      setAnswerProvider(data.provider ?? null);
     } catch (error) {
       setAnswerError("Network error while generating answer.");
     } finally {
@@ -119,9 +157,24 @@ function App() {
               prototype
             </span>
           </div>
-          <span className="text-xs text-slate-500">
-            Backend: FastAPI • Frontend: React + Vite
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            {appStatus && (
+              <span className="text-xs text-slate-500">
+                Env: {appStatus.environment} • Provider: {appStatus.llm_provider} •
+                DB: {appStatus.checks.database}
+              </span>
+            )}
+            {appStatusError && (
+              <span className="text-xs text-red-600">
+                {appStatusError}
+              </span>
+            )}
+            {!appStatus && !appStatusError && (
+              <span className="text-xs text-slate-400">
+                Checking backend status…
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -167,6 +220,11 @@ function App() {
                 Analysis summary
               </p>
               <p className="text-sm text-slate-800">{resumeSummary}</p>
+              {resumeProvider && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Provider: {resumeProvider}
+                </p>
+              )}
             </div>
           )}
         </section>
@@ -241,6 +299,11 @@ function App() {
             <p className="text-sm text-slate-800">
               {generatedAnswer ?? "The generated interview answer will appear here."}
             </p>
+            {answerProvider && (
+              <p className="mt-1 text-xs text-slate-500">
+                Provider: {answerProvider}
+              </p>
+            )}
           </div>
         </section>
       </main>
