@@ -53,6 +53,20 @@ def generate_answer(
                 detail="Resume analysis not found.",
             )
 
+    if payload.user_id is not None and resume_analysis is not None:
+        if resume_analysis.user_id is not None and resume_analysis.user_id != payload.user_id:
+            logger.warning(
+                "generate answer with mismatched user and resume analysis "
+                "user_id=%s resume_analysis_id=%s resume_analysis_user_id=%s",
+                payload.user_id,
+                payload.resume_analysis_id,
+                resume_analysis.user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Resume analysis does not belong to the specified user.",
+            )
+
     answer_text = generate_interview_answer(
         question=payload.question,
         job_title=payload.job_title,
