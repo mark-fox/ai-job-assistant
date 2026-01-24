@@ -129,14 +129,21 @@ def list_answers(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    user_id: int | None = Query(default=None, ge=1),
 ) -> List[InterviewAnswerRead]:
+    query = db.query(InterviewAnswer)
+
+    if user_id is not None:
+        query = query.filter(InterviewAnswer.user_id == user_id)
+
     answers = (
-        db.query(InterviewAnswer)
+        query
         .order_by(InterviewAnswer.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
+
 
     return [
         InterviewAnswerRead(

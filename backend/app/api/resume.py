@@ -81,14 +81,21 @@ def list_resume_analyses(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    user_id: int | None = Query(default=None, ge=1),
 ) -> List[ResumeAnalysisRead]:
+    query = db.query(ResumeAnalysis)
+
+    if user_id is not None:
+        query = query.filter(ResumeAnalysis.user_id == user_id)
+
     analyses = (
-        db.query(ResumeAnalysis)
+        query
         .order_by(ResumeAnalysis.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
+
 
     return [
         ResumeAnalysisRead(

@@ -172,3 +172,131 @@ def test_list_answers(client: TestClient):
     assert "id" in first
     assert "answer" in first
     assert first["provider"] == "stub"
+
+
+def test_list_resume_analyses_filtered_by_user(client: TestClient):
+    user1_resp = client.post(
+        "/api/users",
+        json={"email": "resume_user1@example.com", "full_name": "Resume User 1"},
+    )
+    assert user1_resp.status_code == 201
+    user1_id = user1_resp.json()["id"]
+
+    user2_resp = client.post(
+        "/api/users",
+        json={"email": "resume_user2@example.com", "full_name": "Resume User 2"},
+    )
+    assert user2_resp.status_code == 201
+    user2_id = user2_resp.json()["id"]
+
+    for i in range(2):
+        resp = client.post(
+            "/api/resume/analyze",
+            json={
+                "user_id": user1_id,
+                "resume_text": (
+                    f"Resume for user 1, entry {i}. Backend engineer with FastAPI and SQL."
+                ),
+            },
+        )
+        assert resp.status_code == 201
+
+    resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user2_id,
+            "resume_text": (
+                "Resume for user 2. Focused on frontend development with React."
+            ),
+        },
+    )
+    assert resp.status_code == 201
+
+    list_resp_user1 = client.get(f"/api/resume?user_id={user1_id}")
+    assert list_resp_user1.status_code == 200
+    items_user1 = list_resp_user1.json()
+    assert len(items_user1) == 2
+    assert all(item["user_id"] == user1_id for item in items_user1)
+
+    list_resp_user2 = client.get(f"/api/resume?user_id={user2_id}")
+    assert list_resp_user2.status_code == 200
+    items_user2 = list_resp_user2.json()
+    assert len(items_user2) == 1
+    assert items_user2[0]["user_id"] == user2_id
+
+
+def test_list_answers_filtered_by_user(client: TestClient):
+    user1_resp = client.post(
+        "/api/users",
+        json={"email": "answer_user1@example.com", "full_name": "Answer User 1"},
+    )
+    assert user1_resp.status_code == 201
+    user1_id = user1_resp.json()["id"]
+
+    user2_resp = client.post(
+        "/api/users",
+        json={"email": "answer_user2@example.com", "full_name": "Answer User 2"},
+    )
+    assert user2_resp.status_code == 201
+    user2_id = user2_resp.json()["id"]
+
+    resume1_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user1_id,
+            "resume_text": (
+                "Resume for answer user 1. Backend developer experienced with APIs."
+            ),
+        },
+    )
+    assert resume1_resp.status_code == 201
+    resume1_id = resume1_resp.json()["id"]
+
+    resume2_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user2_id,
+            "resume_text": (
+                "Resume for answer user 2. Software engineer with mixed stack."
+            ),
+        },
+    )
+    assert resume2_resp.status_code == 201
+    resume2_id = resume2_resp.json()["id"]
+
+    for i in range(2):
+        resp = client.post(
+            "/api/generate/answer",
+            json={
+                "user_id": user1_id,
+                "resume_analysis_id": resume1_id,
+                "question": f"User 1 question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Example Corp",
+            },
+        )
+        assert resp.status_code == 201
+
+    resp = client.post(
+        "/api/generate/answer",
+        json={
+            "user_id": user2_id,
+            "resume_analysis_id": resume2_id,
+            "question": "User 2 question?",
+            "job_title": "Full Stack Engineer",
+            "company_name": "Sample Inc",
+        },
+    )
+    assert resp.status_code == 201
+
+    list_resp_user1 = client.get(f"/api/answers?user_id={user1_id}")
+    assert list_resp_user1.status_code == 200
+    items_user1 = list_resp_user1.json()
+    assert len(items_user1) == 2
+    assert all(item["user_id"] == user1_id for item in items_user1)
+
+    list_resp_user2 = client.get(f"/api/answers?user_id={user2_id}")
+    assert list_resp_user2.status_code == 200
+    items_user2 = list_resp_user2.json()
+    assert len(items_user2) == 1
+    assert items_user2[0]["user_id"] == user2_id
