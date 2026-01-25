@@ -1,10 +1,13 @@
 from enum import Enum
 import logging
 from typing import Optional
+from openai import OpenAI
 
 from app.core.config import settings
 
 logger = logging.getLogger("ai_job_assistant.agent")
+
+client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
 
 class LLMProvider(str, Enum):
@@ -94,7 +97,7 @@ def _generate_interview_answer_stub(
 
 
 def _summarize_resume_openai(resume_text: str) -> str:
-    if not settings.openai_api_key:
+    if not settings.openai_api_key or client is None:
         logger.warning(
             "OpenAI provider selected without API key; using stub summarization instead"
         )
@@ -105,9 +108,23 @@ def _summarize_resume_openai(resume_text: str) -> str:
         settings.openai_model,
     )
 
-    # Placeholder: this is where an actual OpenAI API call would go.
-    # For now, keep behavior identical to the stub.
-    return _summarize_resume_stub(resume_text)
+    prompt = (
+        "You are a job coach assistant. Summarize the candidate's resume in 3–5 sentences. "
+        "Focus on their experience level, main skills, and the type of roles they seem suited for. "
+        "Write in a clear, concise, and friendly tone.\n\n"
+        f"RESUME:\n{resume_text}"
+    )
+
+    try:
+        response = client.responses.create(
+            model=settings.openai_model,
+            input=prompt,
+        )
+        summary = response.output[0].content[0].text
+        return summary.strip()
+    except Exception as exc:
+        logger.error("OpenAI summarization failed: %s", exc)
+        return _summarize_resume_stub(resume_text)
 
 
 def _generate_interview_answer_openai(
@@ -115,7 +132,7 @@ def _generate_interview_answer_openai(
     job_title: Optional[str],
     company_name: Optional[str],
 ) -> str:
-    if not settings.openai_api_key:
+    if not settings.openai_api_key or client is None:
         logger.warning(
             "OpenAI provider selected without API key; using stub answer generation instead"
         )
@@ -132,10 +149,33 @@ def _generate_interview_answer_openai(
         company_name,
     )
 
-    # Placeholder: this is where an actual OpenAI API call would go.
-    # For now, keep behavior identical to the stub.
-    return _generate_interview_answer_stub(
-        question=question,
-        job_title=job_title,
-        company_name=company_name,
+    role_line = f"Target role: {job_title}." if job_title else ""
+    company_line = f"Company: {company_name}." if company_name else ""
+
+    prompt = (
+        "You are an interview coach helping a candidate prepare for job interviews.\n"
+        "Write a strong spoken-style answer to the question below.\n"
+        "Structure it as:\n"
+        "1) A one-sentence direct opening.\n"
+        "2) 2–3 short, concrete examples from their experience.\n"
+        "3) A one-sentence wrap-up that connects back to the role.\n\n"
+        f"{role_line}\n"
+        f"{company_line}\n"
+        f"Interview question: {question}"
     )
+
+    try:
+        response = client.responses.create(
+            model=settings.openai_model,
+            input=prompt,
+        )
+        answer = response.output[0].content[0].text
+        return answer.strip()
+    except Exception as exc:
+        logger.error("OpenAI answer generation failed: %s", exc)
+        return _generate_interview_answer_stub(
+            question=question,
+            job_title=job_title,
+            company_name=company_name,
+        )
+
