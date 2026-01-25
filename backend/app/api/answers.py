@@ -10,6 +10,7 @@ from app.core.db import get_db
 from app.models import InterviewAnswer, ResumeAnalysis, User
 from app.schemas import GenerateAnswerRequest, InterviewAnswerRead
 from app.core.config import settings
+from app.core.auth import get_current_user_optional
 
 router = APIRouter(
     prefix="/api",
@@ -27,7 +28,24 @@ logger = logging.getLogger("ai_job_assistant.answers")
 def generate_answer(
     payload: GenerateAnswerRequest,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> InterviewAnswerRead:
+    if current_user is not None and payload.user_id is not None:
+        if current_user.id != payload.user_id:
+            logger.warning(
+                "generate answer with mismatched header and body user "
+                "header_user_id=%s body_user_id=%s",
+                current_user.id,
+                payload.user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Body user_id does not match authenticated user.",
+            )
+
+    if current_user is not None and payload.user_id is None:
+        payload.user_id = current_user.id
+
     user = None
     if payload.user_id is not None:
         user = db.query(User).filter(User.id == payload.user_id).first()

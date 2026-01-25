@@ -300,3 +300,70 @@ def test_list_answers_filtered_by_user(client: TestClient):
     items_user2 = list_resp_user2.json()
     assert len(items_user2) == 1
     assert items_user2[0]["user_id"] == user2_id
+
+
+def test_generate_answer_uses_header_user_when_body_missing(client: TestClient):
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "header_user@example.com", "full_name": "Header User"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Resume for header user. Backend developer working with FastAPI."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    resume_id = resume_resp.json()["id"]
+
+    answer_resp = client.post(
+        "/api/generate/answer",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": None,
+            "resume_analysis_id": resume_id,
+            "question": "How do you approach debugging backend issues?",
+            "job_title": "Backend Engineer",
+            "company_name": "Example Corp",
+        },
+    )
+    assert answer_resp.status_code == 201
+    data = answer_resp.json()
+    assert data["user_id"] == user_id
+
+
+def test_generate_answer_rejects_mismatched_header_and_body_user(client: TestClient):
+    user1_resp = client.post(
+        "/api/users",
+        json={"email": "header_mismatch1@example.com", "full_name": "Header Mismatch 1"},
+    )
+    assert user1_resp.status_code == 201
+    user1_id = user1_resp.json()["id"]
+
+    user2_resp = client.post(
+        "/api/users",
+        json={"email": "header_mismatch2@example.com", "full_name": "Header Mismatch 2"},
+    )
+    assert user2_resp.status_code == 201
+    user2_id = user2_resp.json()["id"]
+
+    answer_resp = client.post(
+        "/api/generate/answer",
+        headers={"X-User-Id": str(user1_id)},
+        json={
+            "user_id": user2_id,
+            "resume_analysis_id": None,
+            "question": "Why do you want this role?",
+            "job_title": "Backend Engineer",
+            "company_name": "Example Corp",
+        },
+    )
+    assert answer_resp.status_code == 400
+    data = answer_resp.json()
+    assert data["detail"] == "Body user_id does not match authenticated user."
