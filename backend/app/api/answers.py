@@ -87,10 +87,13 @@ def generate_answer(
                 detail="Resume analysis does not belong to the specified user.",
             )
 
+    resume_summary = resume_analysis.summary if resume_analysis is not None else None
+
     answer_text, provider_used = generate_interview_answer(
         question=payload.question,
         job_title=payload.job_title,
         company_name=payload.company_name,
+        resume_summary=resume_summary,
     )
 
     interview_answer = InterviewAnswer(

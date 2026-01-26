@@ -32,6 +32,7 @@ def generate_interview_answer(
     question: str,
     job_title: Optional[str] = None,
     company_name: Optional[str] = None,
+    resume_summary: Optional[str] = None,
 ) -> tuple[str, str]:
     provider = _get_provider()
 
@@ -40,6 +41,7 @@ def generate_interview_answer(
             question=question,
             job_title=job_title,
             company_name=company_name,
+            resume_summary=resume_summary,
         ), "stub"
 
     if provider is LLMProvider.OPENAI:
@@ -47,6 +49,7 @@ def generate_interview_answer(
             question=question,
             job_title=job_title,
             company_name=company_name,
+            resume_summary=resume_summary,
         )
 
     logger.warning("unknown llm provider %s, falling back to stub", settings.llm_provider)
@@ -54,6 +57,7 @@ def generate_interview_answer(
         question=question,
         job_title=job_title,
         company_name=company_name,
+        resume_summary=resume_summary,
     ), "stub"
 
 
@@ -80,6 +84,7 @@ def _generate_interview_answer_stub(
     question: str,
     job_title: Optional[str],
     company_name: Optional[str],
+    resume_summary: Optional[str],
 ) -> str:
     parts: list[str] = [f"Question: {question}"]
 
@@ -87,6 +92,13 @@ def _generate_interview_answer_stub(
         parts.append(f"Target role: {job_title}")
     if company_name:
         parts.append(f"Company: {company_name}")
+
+    if resume_summary:
+        # Keep it short so it does not overwhelm the stub output
+        trimmed = resume_summary.strip()
+        if len(trimmed) > 200:
+            trimmed = trimmed[:200] + "..."
+        parts.append(f"Resume summary snippet: {trimmed}")
 
     parts.append(
         "This is a placeholder answer for development purposes, "
@@ -130,6 +142,7 @@ def _generate_interview_answer_openai(
     question: str,
     job_title: Optional[str],
     company_name: Optional[str],
+    resume_summary: Optional[str],
 ) -> tuple[str, str]:
     if not settings.openai_api_key or client is None:
         logger.warning(
@@ -139,6 +152,7 @@ def _generate_interview_answer_openai(
             question=question,
             job_title=job_title,
             company_name=company_name,
+            resume_summary=resume_summary,
         ), "stub"
 
     logger.info(
@@ -151,6 +165,14 @@ def _generate_interview_answer_openai(
     role_line = f"Target role: {job_title}." if job_title else ""
     company_line = f"Company: {company_name}." if company_name else ""
 
+    resume_block = ""
+    if resume_summary:
+        resume_block = (
+            "Here is a summary of the candidate's background. Use this information "
+            "to ground your answer in their actual experience:\n"
+            f"{resume_summary}\n\n"
+        )
+
     prompt = (
         "You are an interview coach helping a candidate prepare for job interviews.\n"
         "Write a strong spoken-style answer to the question below.\n"
@@ -160,6 +182,7 @@ def _generate_interview_answer_openai(
         "3) A one-sentence wrap-up that connects back to the role.\n\n"
         f"{role_line}\n"
         f"{company_line}\n"
+        f"{resume_block}"
         f"Interview question: {question}"
     )
 
@@ -176,5 +199,6 @@ def _generate_interview_answer_openai(
             question=question,
             job_title=job_title,
             company_name=company_name,
+            resume_summary=resume_summary,
         ), "stub"
 
