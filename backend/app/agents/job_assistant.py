@@ -1,6 +1,6 @@
 from enum import Enum
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 from openai import OpenAI
 
 from app.core.config import settings
@@ -15,24 +15,24 @@ class LLMProvider(str, Enum):
     OPENAI = "openai"
 
 
-def summarize_resume(resume_text: str) -> str:
+def summarize_resume(resume_text: str) -> tuple[str, str]:
     provider = _get_provider()
 
     if provider is LLMProvider.STUB:
-        return _summarize_resume_stub(resume_text)
+        return _summarize_resume_stub(resume_text), "stub"
 
     if provider is LLMProvider.OPENAI:
         return _summarize_resume_openai(resume_text)
 
     logger.warning("unknown llm provider %s, falling back to stub", settings.llm_provider)
-    return _summarize_resume_stub(resume_text)
+    return _summarize_resume_stub(resume_text), "stub"
 
 
 def generate_interview_answer(
     question: str,
     job_title: Optional[str] = None,
     company_name: Optional[str] = None,
-) -> str:
+) -> tuple[str, str]:
     provider = _get_provider()
 
     if provider is LLMProvider.STUB:
@@ -40,7 +40,7 @@ def generate_interview_answer(
             question=question,
             job_title=job_title,
             company_name=company_name,
-        )
+        ), "stub"
 
     if provider is LLMProvider.OPENAI:
         return _generate_interview_answer_openai(
@@ -54,7 +54,7 @@ def generate_interview_answer(
         question=question,
         job_title=job_title,
         company_name=company_name,
-    )
+    ), "stub"
 
 
 def _get_provider() -> LLMProvider:
@@ -96,12 +96,12 @@ def _generate_interview_answer_stub(
     return " | ".join(parts)
 
 
-def _summarize_resume_openai(resume_text: str) -> str:
+def _summarize_resume_openai(resume_text: str) -> tuple[str, str]:
     if not settings.openai_api_key or client is None:
         logger.warning(
             "OpenAI provider selected without API key; using stub summarization instead"
         )
-        return _summarize_resume_stub(resume_text)
+        return _summarize_resume_stub(resume_text), "stub"
 
     logger.info(
         "OpenAI summarization requested with model=%s",
@@ -110,8 +110,7 @@ def _summarize_resume_openai(resume_text: str) -> str:
 
     prompt = (
         "You are a job coach assistant. Summarize the candidate's resume in 3–5 sentences. "
-        "Focus on their experience level, main skills, and the type of roles they seem suited for. "
-        "Write in a clear, concise, and friendly tone.\n\n"
+        "Focus on their experience level, main skills, and the type of roles they seem suited for.\n\n"
         f"RESUME:\n{resume_text}"
     )
 
@@ -121,17 +120,17 @@ def _summarize_resume_openai(resume_text: str) -> str:
             input=prompt,
         )
         summary = response.output[0].content[0].text
-        return summary.strip()
+        return summary.strip(), "openai"
     except Exception as exc:
         logger.error("OpenAI summarization failed: %s", exc)
-        return _summarize_resume_stub(resume_text)
+        return _summarize_resume_stub(resume_text), "stub"
 
 
 def _generate_interview_answer_openai(
     question: str,
     job_title: Optional[str],
     company_name: Optional[str],
-) -> str:
+) -> tuple[str, str]:
     if not settings.openai_api_key or client is None:
         logger.warning(
             "OpenAI provider selected without API key; using stub answer generation instead"
@@ -140,7 +139,7 @@ def _generate_interview_answer_openai(
             question=question,
             job_title=job_title,
             company_name=company_name,
-        )
+        ), "stub"
 
     logger.info(
         "OpenAI answer generation requested model=%s job_title=%s company_name=%s",
@@ -170,12 +169,12 @@ def _generate_interview_answer_openai(
             input=prompt,
         )
         answer = response.output[0].content[0].text
-        return answer.strip()
+        return answer.strip(), "openai"
     except Exception as exc:
         logger.error("OpenAI answer generation failed: %s", exc)
         return _generate_interview_answer_stub(
             question=question,
             job_title=job_title,
             company_name=company_name,
-        )
+        ), "stub"
 

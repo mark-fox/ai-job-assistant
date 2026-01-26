@@ -38,12 +38,12 @@ def analyze_resume(
                 detail="User not found.",
             )
 
-    summary = summarize_resume(payload.resume_text)
+    summary_text, provider_used = summarize_resume(payload.resume_text)
 
     analysis = ResumeAnalysis(
         user_id=payload.user_id,
         resume_text=payload.resume_text,
-        summary=summary,
+        summary=summary_text,
     )
     db.add(analysis)
     try:
@@ -69,7 +69,7 @@ def analyze_resume(
         resume_text=analysis.resume_text,
         summary=analysis.summary,
         created_at=analysis.created_at,
-        provider=settings.llm_provider,
+        provider=provider_used,
     )
 
 

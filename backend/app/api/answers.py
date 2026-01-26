@@ -87,7 +87,7 @@ def generate_answer(
                 detail="Resume analysis does not belong to the specified user.",
             )
 
-    answer_text = generate_interview_answer(
+    answer_text, provider_used = generate_interview_answer(
         question=payload.question,
         job_title=payload.job_title,
         company_name=payload.company_name,
@@ -135,7 +135,7 @@ def generate_answer(
         company_name=interview_answer.company_name,
         answer=interview_answer.answer,
         created_at=interview_answer.created_at,
-        provider=settings.llm_provider,
+        provider=provider_used,
     )
 
 

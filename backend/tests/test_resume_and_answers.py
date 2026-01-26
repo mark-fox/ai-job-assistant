@@ -18,7 +18,7 @@ def test_analyze_resume_and_generate_answer(client: TestClient):
     resume_data = resume_resp.json()
     assert resume_data["id"] > 0
     assert "summary" in resume_data
-    assert resume_data["provider"] == "stub"
+    assert resume_data["provider"] in ("stub", "openai")
 
     analysis_id = resume_data["id"]
 
@@ -36,8 +36,17 @@ def test_analyze_resume_and_generate_answer(client: TestClient):
     answer_data = answer_resp.json()
     assert answer_data["id"] > 0
     assert answer_data["resume_analysis_id"] == analysis_id
-    assert "Tell me about yourself." in answer_data["answer"]
-    assert answer_data["provider"] == "stub"
+    
+    # Behavior depends on provider: stub echoes the question text, OpenAI does not have to.
+    if answer_data["provider"] == "stub":
+        assert "Tell me about yourself." in answer_data["answer"]
+    else:
+        # For real AI answers, just require a non-trivial response.
+        assert isinstance(answer_data["answer"], str)
+        assert len(answer_data["answer"].strip()) > 20
+
+    assert answer_data["provider"] in ("stub", "openai")
+
 
 def test_generate_answer_validation_error(client: TestClient):
     short_question_resp = client.post(
@@ -130,7 +139,7 @@ def test_list_resume_analyses(client: TestClient):
     first = items[0]
     assert "id" in first
     assert "summary" in first
-    assert first["provider"] == "stub"
+    assert first["provider"] in ("stub", "openai")
 
 
 def test_list_answers(client: TestClient):
@@ -171,7 +180,7 @@ def test_list_answers(client: TestClient):
     first = items[0]
     assert "id" in first
     assert "answer" in first
-    assert first["provider"] == "stub"
+    assert first["provider"] in ("stub", "openai")
 
 
 def test_list_resume_analyses_filtered_by_user(client: TestClient):
