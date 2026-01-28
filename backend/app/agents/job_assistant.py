@@ -168,23 +168,38 @@ def _generate_interview_answer_openai(
     resume_block = ""
     if resume_summary:
         resume_block = (
-            "Here is a summary of the candidate's background. Use this information "
-            "to ground your answer in their actual experience:\n"
-            f"{resume_summary}\n\n"
+            "The candidate background summary is between the markers "
+            "<SUMMARY_START> and <SUMMARY_END>.\n"
+            "<SUMMARY_START>\n"
+            f"{resume_summary}\n"
+            "<SUMMARY_END>\n\n"
+        )
+    else:
+        resume_block = (
+            "No background summary is available. "
+            "Give a helpful but general answer that could apply to a junior backend developer.\n\n"
         )
 
     prompt = (
-        "You are an interview coach helping a candidate prepare for job interviews.\n"
-        "Write a strong spoken-style answer to the question below.\n"
-        "Structure it as:\n"
-        "1) A one-sentence direct opening.\n"
-        "2) 2–3 short, concrete examples from their experience.\n"
-        "3) A one-sentence wrap-up that connects back to the role.\n\n"
+        "You are an interview coach helping a candidate prepare for a job interview.\n"
+        "You are writing the answer AS THE CANDIDATE, in first person (using 'I').\n"
+        "Follow these rules strictly:\n"
+        "1) When a background summary is provided, you must base the answer ONLY on information in that summary.\n"
+        "2) Do NOT claim that the summary is missing or unavailable when it is present.\n"
+        "3) Do NOT mention the words 'summary', 'candidate', 'markers', 'AI', or how you generated the answer.\n"
+        "4) Do NOT invent projects, responsibilities, technologies, or domains that are not clearly supported by the summary.\n"
+        "5) If a detail is not in the summary, keep that part of the answer general.\n\n"
         f"{role_line}\n"
         f"{company_line}\n"
         f"{resume_block}"
+        "Write a spoken-style answer to the interview question below.\n"
+        "Structure the answer as:\n"
+        "1) One sentence that directly answers the question.\n"
+        "2) 2–3 short, concrete examples that clearly match the background from the summary.\n"
+        "3) One sentence that connects their experience back to the role and company.\n\n"
         f"Interview question: {question}"
     )
+
 
     try:
         response = client.responses.create(
