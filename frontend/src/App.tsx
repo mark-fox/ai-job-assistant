@@ -11,6 +11,28 @@ type StatusResponse = {
   };
 };
 
+type ResumeAnalysis = {
+  id: number;
+  user_id: number | null;
+  resume_text: string;
+  summary: string;
+  created_at: string;
+  provider: string;
+};
+
+type InterviewAnswer = {
+  id: number;
+  user_id: number | null;
+  resume_analysis_id: number | null;
+  question: string;
+  job_title: string | null;
+  company_name: string | null;
+  answer: string;
+  created_at: string;
+  provider: string;
+};
+
+
 function App() {
   const [appStatus, setAppStatus] = useState<StatusResponse | null>(null);
   const [appStatusError, setAppStatusError] = useState<string | null>(null);
@@ -28,6 +50,12 @@ function App() {
   const [answerProvider, setAnswerProvider] = useState<string | null>(null);
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [analysisAnswers, setAnalysisAnswers] = useState<InterviewAnswer[]>([]);
+  const [resumeAnalysisId, setResumeAnalysisId] = useState<number | null>(null);
+  const [resumeAnswers, setResumeAnswers] = useState<
+    { id: number; question: string; answer: string; provider: string }[]
+  >([]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -58,6 +86,8 @@ function App() {
     setResumeError(null);
     setResumeSummary(null);
     setResumeProvider(null);
+    setResumeAnalysisId(null);
+    setResumeAnswers([]);
 
     if (!resumeText.trim()) {
       setResumeError("Resume text is required.");
@@ -91,12 +121,18 @@ function App() {
       const data = await response.json();
       setResumeSummary(data.summary ?? "No summary returned.");
       setResumeProvider(data.provider ?? null);
+
+      if (typeof data.id === "number") {
+        setResumeAnalysisId(data.id);
+        await fetchAnswersForResume(data.id);
+      }
     } catch (error) {
       setResumeError("Network error while analyzing resume.");
     } finally {
       setResumeLoading(false);
     }
   };
+
 
   const handleGenerateAnswer = async () => {
     setAnswerError(null);
@@ -117,7 +153,7 @@ function App() {
         },
         body: JSON.stringify({
           user_id: null,
-          resume_analysis_id: null,
+          resume_analysis_id: resumeAnalysisId, // use current analysis if available
           question,
           job_title: jobTitle || null,
           company_name: companyName || null,
@@ -138,12 +174,50 @@ function App() {
       const data = await response.json();
       setGeneratedAnswer(data.answer ?? "No answer returned.");
       setAnswerProvider(data.provider ?? null);
+
+      // If this answer is tied to a resume, refresh that resume's answer list
+      const analysisIdFromResponse =
+        typeof data.resume_analysis_id === "number"
+          ? data.resume_analysis_id
+          : resumeAnalysisId;
+
+      if (analysisIdFromResponse != null) {
+        setResumeAnalysisId(analysisIdFromResponse);
+        await fetchAnswersForResume(analysisIdFromResponse);
+      }
     } catch (error) {
       setAnswerError("Network error while generating answer.");
     } finally {
       setAnswerLoading(false);
     }
   };
+
+
+  const fetchAnswersForResume = async (analysisId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/resume/${analysisId}/answers?limit=10&offset=0`,
+      );
+
+      if (!response.ok) {
+        console.error("Failed to fetch answers for resume", await response.text());
+        return;
+      }
+
+      const data = await response.json();
+      setResumeAnswers(
+        (data ?? []).map((item: any) => ({
+          id: item.id,
+          question: item.question,
+          answer: item.answer,
+          provider: item.provider,
+        })),
+      );
+    } catch (error) {
+      console.error("Network error while fetching answers for resume", error);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-slate-200 text-slate-950">
@@ -305,6 +379,46 @@ function App() {
               </p>
             )}
           </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Answers for this resume
+            </p>
+
+            {resumeAnalysisId == null && (
+              <p className="text-sm text-slate-500">
+                Analyze a resume first to see related answers.
+              </p>
+            )}
+
+            {resumeAnalysisId != null && resumeAnswers.length === 0 && (
+              <p className="text-sm text-slate-500">
+                No answers have been generated for this resume yet.
+              </p>
+            )}
+
+            {resumeAnalysisId != null && resumeAnswers.length > 0 && (
+              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                {resumeAnswers.map((answer) => (
+                  <div
+                    key={answer.id}
+                    className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm"
+                  >
+                    <p className="text-xs font-semibold text-slate-700">
+                      Q: {answer.question}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-800 line-clamp-3">
+                      {answer.answer}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Provider: {answer.provider}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </section>
       </main>
     </div>
