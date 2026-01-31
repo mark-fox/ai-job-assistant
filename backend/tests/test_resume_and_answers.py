@@ -376,3 +376,78 @@ def test_generate_answer_rejects_mismatched_header_and_body_user(client: TestCli
     assert answer_resp.status_code == 400
     data = answer_resp.json()
     assert data["detail"] == "Body user_id does not match authenticated user."
+
+
+def test_list_answers_for_specific_resume(client: TestClient):
+    # Create a user
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "resume_answers@example.com", "full_name": "Resume Answers User"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    # Create a resume analysis for that user
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Backend developer with experience in Python and FastAPI. "
+                "Worked on internal tools and APIs for data-heavy features."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    resume_data = resume_resp.json()
+    analysis_id = resume_data["id"]
+
+    # Generate two answers tied to that resume
+    for i in range(2):
+        answer_resp = client.post(
+            "/api/generate/answer",
+            json={
+                "user_id": user_id,
+                "resume_analysis_id": analysis_id,
+                "question": f"Question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Example Corp",
+            },
+        )
+        assert answer_resp.status_code == 201
+
+    # Generate an answer for a different resume so we can confirm filtering
+    other_resume_resp = client.post(
+        "/api/resume/analyze",
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Different resume for filtering test. Focused on other projects."
+            ),
+        },
+    )
+    assert other_resume_resp.status_code == 201
+    other_analysis_id = other_resume_resp.json()["id"]
+
+    other_answer_resp = client.post(
+        "/api/generate/answer",
+        json={
+            "user_id": user_id,
+            "resume_analysis_id": other_analysis_id,
+            "question": "Unrelated question?",
+            "job_title": "Backend Engineer",
+            "company_name": "Other Corp",
+        },
+    )
+    assert other_answer_resp.status_code == 201
+
+    # Now fetch answers just for the first resume analysis
+    list_resp = client.get(f"/api/resume/{analysis_id}/answers?limit=10&offset=0")
+    assert list_resp.status_code == 200
+
+    items = list_resp.json()
+    assert isinstance(items, list)
+    # Should only include the 2 answers tied to this resume
+    assert len(items) == 2
+    assert all(item["resume_analysis_id"] == analysis_id for item in items)
+    assert all(item["provider"] in ("stub", "openai") for item in items)

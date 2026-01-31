@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.agents.job_assistant import summarize_resume
 from app.core.db import get_db
-from app.models import ResumeAnalysis, User
-from app.schemas import ResumeAnalyzeRequest, ResumeAnalysisRead
+from app.models import ResumeAnalysis, User, InterviewAnswer
+from app.schemas import ResumeAnalyzeRequest, ResumeAnalysisRead, InterviewAnswerRead
 from app.core.config import settings
 
 router = APIRouter(
@@ -138,3 +138,50 @@ def get_resume_analysis(
         provider=settings.llm_provider,
     )
 
+
+@router.get(
+    "/{analysis_id}/answers",
+    response_model=List[InterviewAnswerRead],
+)
+def list_answers_for_resume(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> List[InterviewAnswerRead]:
+    analysis = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id)
+        .first()
+    )
+
+    if analysis is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume analysis not found.",
+        )
+
+    answers = (
+        db.query(InterviewAnswer)
+        .filter(InterviewAnswer.resume_analysis_id == analysis_id)
+        .order_by(InterviewAnswer.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        InterviewAnswerRead(
+            id=a.id,
+            user_id=a.user_id,
+            resume_analysis_id=a.resume_analysis_id,
+            question=a.question,
+            job_title=a.job_title,
+            company_name=a.company_name,
+            answer=a.answer,
+            created_at=a.created_at,
+            # For list-style endpoints, provider reflects the currently configured provider.
+            provider=settings.llm_provider,
+        )
+        for a in answers
+    ]
