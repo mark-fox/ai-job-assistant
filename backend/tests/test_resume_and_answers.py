@@ -451,3 +451,60 @@ def test_list_answers_for_specific_resume(client: TestClient):
     assert len(items) == 2
     assert all(item["resume_analysis_id"] == analysis_id for item in items)
     assert all(item["provider"] in ("stub", "openai") for item in items)
+
+
+def test_analyze_resume_uses_header_user_when_body_missing(client: TestClient):
+  user_resp = client.post(
+      "/api/users",
+      json={"email": "resume_header@example.com", "full_name": "Resume Header User"},
+  )
+  assert user_resp.status_code == 201
+  user_id = user_resp.json()["id"]
+
+  resp = client.post(
+      "/api/resume/analyze",
+      headers={"X-User-Id": str(user_id)},
+      json={
+          "user_id": None,
+          "resume_text": (
+              "Backend dev with experience in Python and FastAPI. "
+              "Worked on APIs and internal tools for data-heavy features."
+          ),
+      },
+  )
+  assert resp.status_code == 201
+  data = resp.json()
+  assert data["user_id"] == user_id
+  assert data["summary"]
+  assert data["provider"] in ("stub", "openai")
+
+
+def test_analyze_resume_rejects_mismatched_header_and_body_user(client: TestClient):
+  user1_resp = client.post(
+      "/api/users",
+      json={"email": "resume_mismatch1@example.com", "full_name": "Resume Mismatch 1"},
+  )
+  assert user1_resp.status_code == 201
+  user1_id = user1_resp.json()["id"]
+
+  user2_resp = client.post(
+      "/api/users",
+      json={"email": "resume_mismatch2@example.com", "full_name": "Resume Mismatch 2"},
+  )
+  assert user2_resp.status_code == 201
+  user2_id = user2_resp.json()["id"]
+
+  resp = client.post(
+      "/api/resume/analyze",
+      headers={"X-User-Id": str(user1_id)},
+      json={
+          "user_id": user2_id,
+          "resume_text": (
+              "Resume text for mismatched header/body user IDs. "
+              "This should be rejected due to inconsistency."
+          ),
+      },
+  )
+  assert resp.status_code == 400
+  data = resp.json()
+  assert data["detail"] == "Body user_id does not match authenticated user."
