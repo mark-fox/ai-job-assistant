@@ -235,7 +235,7 @@ function App() {
             {appStatus && (
               <span className="text-xs text-slate-500">
                 Env: {appStatus.environment} • Provider: {appStatus.llm_provider} •
-                DB: {appStatus.checks.database}
+                DB: {appStatus.checks?.database ?? "unknown"}
               </span>
             )}
             {appStatusError && (
