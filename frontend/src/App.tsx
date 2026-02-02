@@ -218,6 +218,20 @@ function App() {
     }
   };
 
+  const handleSelectResumeAnswer = (answer: {
+    id: number;
+    question: string;
+    answer: string;
+    provider: string;
+  }) => {
+    // Bring this answer back into the main answer display
+    setGeneratedAnswer(answer.answer);
+    setAnswerProvider(answer.provider);
+
+    // Optional but nice: repopulate the question field so you remember what you asked
+    setQuestion(answer.question);
+  };
+
 
   return (
     <div className="min-h-screen bg-slate-200 text-slate-950">
@@ -400,9 +414,11 @@ function App() {
             {resumeAnalysisId != null && resumeAnswers.length > 0 && (
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
                 {resumeAnswers.map((answer) => (
-                  <div
+                  <button
                     key={answer.id}
-                    className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm"
+                    type="button"
+                    onClick={() => handleSelectResumeAnswer(answer)}
+                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50"
                   >
                     <p className="text-xs font-semibold text-slate-700">
                       Q: {answer.question}
@@ -413,7 +429,7 @@ function App() {
                     <p className="mt-1 text-[11px] text-slate-500">
                       Provider: {answer.provider}
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
