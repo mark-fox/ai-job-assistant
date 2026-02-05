@@ -54,8 +54,9 @@ function App() {
   const [analysisAnswers, setAnalysisAnswers] = useState<InterviewAnswer[]>([]);
   const [resumeAnalysisId, setResumeAnalysisId] = useState<number | null>(null);
   const [resumeAnswers, setResumeAnswers] = useState<
-    { id: number; question: string; answer: string; provider: string }[]
+    { id: number; question: string; answer: string; provider: string; created_at: string | null }[]
   >([]);
+  const [generatedAnswerCreatedAt, setGeneratedAnswerCreatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -138,6 +139,7 @@ function App() {
     setAnswerError(null);
     setGeneratedAnswer(null);
     setAnswerProvider(null);
+    setGeneratedAnswerCreatedAt(null);
 
     if (!question.trim()) {
       setAnswerError("Interview question is required.");
@@ -174,6 +176,7 @@ function App() {
       const data = await response.json();
       setGeneratedAnswer(data.answer ?? "No answer returned.");
       setAnswerProvider(data.provider ?? null);
+      setGeneratedAnswerCreatedAt(data.created_at ?? null);
 
       // If this answer is tied to a resume, refresh that resume's answer list
       const analysisIdFromResponse =
@@ -211,6 +214,7 @@ function App() {
           question: item.question,
           answer: item.answer,
           provider: item.provider,
+          created_at: item.created_at ?? null,
         })),
       );
     } catch (error) {
@@ -387,9 +391,13 @@ function App() {
             <p className="text-sm text-slate-800">
               {generatedAnswer ?? "The generated interview answer will appear here."}
             </p>
-            {answerProvider && (
+            {(answerProvider || generatedAnswerCreatedAt) && (
               <p className="mt-1 text-xs text-slate-500">
-                Provider: {answerProvider}
+                {answerProvider && <>Provider: {answerProvider}</>}
+                {answerProvider && generatedAnswerCreatedAt && " • "}
+                {generatedAnswerCreatedAt && (
+                  <>Created: {new Date(generatedAnswerCreatedAt).toLocaleString()}</>
+                )}
               </p>
             )}
           </div>
@@ -428,6 +436,9 @@ function App() {
                     </p>
                     <p className="mt-1 text-[11px] text-slate-500">
                       Provider: {answer.provider}
+                      {answer.created_at && (
+                        <> • Created: {new Date(answer.created_at).toLocaleString()}</>
+                      )}
                     </p>
                   </button>
                 ))}
