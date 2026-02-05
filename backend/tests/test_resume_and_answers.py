@@ -508,3 +508,146 @@ def test_analyze_resume_rejects_mismatched_header_and_body_user(client: TestClie
   assert resp.status_code == 400
   data = resp.json()
   assert data["detail"] == "Body user_id does not match authenticated user."
+
+
+def test_list_resume_analyses_scoped_by_header_user(client: TestClient):
+    # Create two users
+    user1_resp = client.post(
+        "/api/users",
+        json={"email": "list_resume_user1@example.com", "full_name": "List Resume User 1"},
+    )
+    assert user1_resp.status_code == 201
+    user1_id = user1_resp.json()["id"]
+
+    user2_resp = client.post(
+        "/api/users",
+        json={"email": "list_resume_user2@example.com", "full_name": "List Resume User 2"},
+    )
+    assert user2_resp.status_code == 201
+    user2_id = user2_resp.json()["id"]
+
+    # Create resume analyses for both users
+    for i in range(2):
+        r1 = client.post(
+            "/api/resume/analyze",
+            headers={"X-User-Id": str(user1_id)},
+            json={
+                "user_id": user1_id,
+                "resume_text": (
+                    f"User 1 resume {i} - Backend dev with Python and FastAPI experience."
+                ),
+            },
+        )
+        assert r1.status_code == 201
+
+    for i in range(3):
+        r2 = client.post(
+            "/api/resume/analyze",
+            headers={"X-User-Id": str(user2_id)},
+            json={
+                "user_id": user2_id,
+                "resume_text": (
+                    f"User 2 resume {i} - Different backend developer profile text."
+                ),
+            },
+        )
+        assert r2.status_code == 201
+
+    # Now list with header set to user 1 -> should only see user 1's analyses
+    list_resp = client.get(
+        "/api/resume?limit=10&offset=0",
+        headers={"X-User-Id": str(user1_id)},
+    )
+    assert list_resp.status_code == 200
+
+    items = list_resp.json()
+    assert isinstance(items, list)
+    assert len(items) == 2
+    assert all(item["user_id"] == user1_id for item in items)
+    assert all(item["provider"] in ("stub", "openai") for item in items)
+
+
+def test_list_answers_scoped_by_header_user(client: TestClient):
+    # Create two users
+    user1_resp = client.post(
+        "/api/users",
+        json={"email": "list_answers_user1@example.com", "full_name": "List Answers User 1"},
+    )
+    assert user1_resp.status_code == 201
+    user1_id = user1_resp.json()["id"]
+
+    user2_resp = client.post(
+        "/api/users",
+        json={"email": "list_answers_user2@example.com", "full_name": "List Answers User 2"},
+    )
+    assert user2_resp.status_code == 201
+    user2_id = user2_resp.json()["id"]
+
+    # Create one resume per user
+    resume1_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user1_id)},
+        json={
+            "user_id": user1_id,
+            "resume_text": (
+                "User 1 resume - Backend developer with Python and FastAPI."
+            ),
+        },
+    )
+    assert resume1_resp.status_code == 201
+    resume1_id = resume1_resp.json()["id"]
+
+    resume2_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user2_id)},
+        json={
+            "user_id": user2_id,
+            "resume_text": (
+                "User 2 resume - Backend developer focused on different stack."
+            ),
+        },
+    )
+    assert resume2_resp.status_code == 201
+    resume2_id = resume2_resp.json()["id"]
+
+    # Create answers for each user
+    for i in range(2):
+        a1 = client.post(
+            "/api/generate/answer",
+            headers={"X-User-Id": str(user1_id)},
+            json={
+                "user_id": user1_id,
+                "resume_analysis_id": resume1_id,
+                "question": f"User 1 question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Example Corp",
+            },
+        )
+        assert a1.status_code == 201
+
+    for i in range(3):
+        a2 = client.post(
+            "/api/generate/answer",
+            headers={"X-User-Id": str(user2_id)},
+            json={
+                "user_id": user2_id,
+                "resume_analysis_id": resume2_id,
+                "question": f"User 2 question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Other Corp",
+            },
+        )
+        assert a2.status_code == 201
+
+    # Now list with header set to user 1 -> should only see user 1's answers
+    list_resp = client.get(
+        "/api/answers?limit=10&offset=0",
+        headers={"X-User-Id": str(user1_id)},
+    )
+    assert list_resp.status_code == 200
+
+    items = list_resp.json()
+    assert isinstance(items, list)
+    assert len(items) == 2
+    assert all(item["user_id"] == user1_id for item in items)
+    assert all(item["provider"] in ("stub", "openai") for item in items)

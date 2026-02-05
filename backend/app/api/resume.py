@@ -100,11 +100,31 @@ def list_resume_analyses(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     user_id: int | None = Query(default=None, ge=1),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> List[ResumeAnalysisRead]:
     query = db.query(ResumeAnalysis)
 
-    if user_id is not None:
-        query = query.filter(ResumeAnalysis.user_id == user_id)
+    # Resolve effective user_id using header + query rules
+    effective_user_id = user_id
+
+    if current_user is not None and user_id is not None:
+        if current_user.id != user_id:
+            logger.warning(
+                "list resume analyses with mismatched header and query "
+                "header_user_id=%s query_user_id=%s",
+                current_user.id,
+                user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Query user_id does not match authenticated user.",
+            )
+
+    if current_user is not None and user_id is None:
+        effective_user_id = current_user.id
+
+    if effective_user_id is not None:
+        query = query.filter(ResumeAnalysis.user_id == effective_user_id)
 
     analyses = (
         query
@@ -113,7 +133,6 @@ def list_resume_analyses(
         .limit(limit)
         .all()
     )
-
 
     return [
         ResumeAnalysisRead(
