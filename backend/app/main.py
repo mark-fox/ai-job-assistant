@@ -1,6 +1,6 @@
 import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from sqlalchemy import text
 from starlette.requests import Request
 from starlette.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from app.api.answers import router as answers_router
 from app.core.db import Base, engine
 from app.core.logging_config import get_logger, setup_logging
 from app.core.config import settings
+from app.api import users, resume, answers, metrics
 
 setup_logging()
 logger = get_logger("ai_job_assistant.api")
@@ -38,7 +39,12 @@ Base.metadata.create_all(bind=engine)
 app.include_router(users_router)
 app.include_router(resume_router)
 app.include_router(answers_router)
-
+api_router = APIRouter(prefix="/api")
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(resume.router, prefix="/resume", tags=["resume"])
+api_router.include_router(answers.router, prefix="/answers", tags=["answers"])
+api_router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+app.include_router(api_router)
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
