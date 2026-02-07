@@ -144,3 +144,82 @@ def test_metrics_summary_with_header_user():
     assert data["total_users"] >= 2
     assert data["total_resume_analyses"] >= 2
     assert data["total_answers"] >= 3
+
+
+def test_user_metrics_requires_auth():
+    resp = client.get("/api/metrics/user")
+    assert resp.status_code == 401
+    data = resp.json()
+    assert data["detail"] == "Authentication required to fetch user metrics."
+
+
+def test_user_metrics_counts_for_user_with_data():
+    # Create a user
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "user_metrics1@example.com", "full_name": "User Metrics 1"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    # Create a resume analysis for that user
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Resume for user metrics test. Backend dev with FastAPI and SQL."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    resume_id = resume_resp.json()["id"]
+
+    # Create two answers for that user and resume
+    for i in range(2):
+        answer_resp = client.post(
+            "/api/generate/answer",
+            headers={"X-User-Id": str(user_id)},
+            json={
+                "user_id": user_id,
+                "resume_analysis_id": resume_id,
+                "question": f"Metrics question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Example Corp",
+            },
+        )
+        assert answer_resp.status_code == 201
+
+    # Fetch user metrics
+    metrics_resp = client.get(
+        "/api/metrics/user",
+        headers={"X-User-Id": str(user_id)},
+    )
+    assert metrics_resp.status_code == 200
+
+    data = metrics_resp.json()
+    assert data["user_id"] == user_id
+    assert data["resume_analyses"] == 1
+    assert data["answers"] == 2
+
+
+def test_user_metrics_counts_for_user_with_no_data():
+    # Create a user with no resumes or answers
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "user_metrics_empty@example.com", "full_name": "User Metrics Empty"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    metrics_resp = client.get(
+        "/api/metrics/user",
+        headers={"X-User-Id": str(user_id)},
+    )
+    assert metrics_resp.status_code == 200
+
+    data = metrics_resp.json()
+    assert data["user_id"] == user_id
+    assert data["resume_analyses"] == 0
+    assert data["answers"] == 0

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,12 @@ class MetricsSummary(BaseModel):
     total_answers: int
     user_resume_analyses: Optional[int] = None
     user_answers: Optional[int] = None
+
+
+class UserMetricsSummary(BaseModel):
+    user_id: int
+    resume_analyses: int
+    answers: int
 
 
 @router.get("/summary", response_model=MetricsSummary)
@@ -51,4 +57,33 @@ def get_metrics_summary(
         total_answers=total_answers,
         user_resume_analyses=user_resume_analyses,
         user_answers=user_answers,
+    )
+
+
+@router.get("/user", response_model=UserMetricsSummary)
+def get_user_metrics(
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> UserMetricsSummary:
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to fetch user metrics.",
+        )
+
+    resume_count = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.user_id == current_user.id)
+        .count()
+    )
+    answer_count = (
+        db.query(InterviewAnswer)
+        .filter(InterviewAnswer.user_id == current_user.id)
+        .count()
+    )
+
+    return UserMetricsSummary(
+        user_id=current_user.id,
+        resume_analyses=resume_count,
+        answers=answer_count,
     )
