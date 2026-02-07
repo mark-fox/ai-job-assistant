@@ -232,3 +232,65 @@ def get_answer(
         provider=settings.llm_provider,
     )
 
+
+@router.delete(
+    "/answers/{answer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_answer(
+    answer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> None:
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to delete interview answers.",
+        )
+
+    answer = (
+        db.query(InterviewAnswer)
+        .filter(InterviewAnswer.id == answer_id)
+        .first()
+    )
+
+    if answer is None:
+        logger.warning("interview answer not found for delete id=%s", answer_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview answer not found.",
+        )
+
+    if answer.user_id is not None and answer.user_id != current_user.id:
+        logger.warning(
+            "forbidden delete interview answer id=%s header_user_id=%s answer_user_id=%s",
+            answer_id,
+            current_user.id,
+            answer.user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this interview answer.",
+        )
+
+    try:
+        db.delete(answer)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error(
+            "failed to delete interview answer id=%s error=%s",
+            answer_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete interview answer.",
+        )
+
+    logger.info(
+        "deleted interview answer id=%s user_id=%s",
+        answer.id,
+        answer.user_id,
+    )
+    return None

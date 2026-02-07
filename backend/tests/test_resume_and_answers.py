@@ -651,3 +651,234 @@ def test_list_answers_scoped_by_header_user(client: TestClient):
     assert len(items) == 2
     assert all(item["user_id"] == user1_id for item in items)
     assert all(item["provider"] in ("stub", "openai") for item in items)
+
+
+def test_delete_answer_owned_by_user(client: TestClient):
+    # Create a user
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "delete_answer_owner@example.com", "full_name": "Delete Answer Owner"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    # Create a resume analysis for that user
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Resume for delete answer owner. Backend developer with FastAPI experience."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    analysis_id = resume_resp.json()["id"]
+
+    # Generate an answer tied to that resume
+    answer_resp = client.post(
+        "/api/generate/answer",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": user_id,
+            "resume_analysis_id": analysis_id,
+            "question": "Describe your experience with backend APIs.",
+            "job_title": "Backend Engineer",
+            "company_name": "Example Corp",
+        },
+    )
+    assert answer_resp.status_code == 201
+    answer_id = answer_resp.json()["id"]
+
+    # Delete the answer as the owning user
+    delete_resp = client.delete(
+        f"/api/answers/{answer_id}",
+        headers={"X-User-Id": str(user_id)},
+    )
+    assert delete_resp.status_code == 204
+
+    # Verify the answer is gone
+    get_resp = client.get(f"/api/answers/{answer_id}")
+    assert get_resp.status_code == 404
+
+
+def test_delete_answer_forbidden_for_other_user(client: TestClient):
+    # Owner user
+    owner_resp = client.post(
+        "/api/users",
+        json={"email": "delete_answer_owner2@example.com", "full_name": "Delete Answer Owner 2"},
+    )
+    assert owner_resp.status_code == 201
+    owner_id = owner_resp.json()["id"]
+
+    # Other user
+    other_resp = client.post(
+        "/api/users",
+        json={"email": "delete_answer_other@example.com", "full_name": "Delete Answer Other"},
+    )
+    assert other_resp.status_code == 201
+    other_id = other_resp.json()["id"]
+
+    # Create resume and answer for owner
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(owner_id)},
+        json={
+            "user_id": owner_id,
+            "resume_text": (
+                "Owner resume for delete answer forbidden test. Backend developer profile."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    analysis_id = resume_resp.json()["id"]
+
+    answer_resp = client.post(
+        "/api/generate/answer",
+        headers={"X-User-Id": str(owner_id)},
+        json={
+            "user_id": owner_id,
+            "resume_analysis_id": analysis_id,
+            "question": "Why are you a good fit?",
+            "job_title": "Backend Engineer",
+            "company_name": "Example Corp",
+        },
+    )
+    assert answer_resp.status_code == 201
+    answer_id = answer_resp.json()["id"]
+
+    # Attempt to delete as non-owner
+    delete_resp = client.delete(
+        f"/api/answers/{answer_id}",
+        headers={"X-User-Id": str(other_id)},
+    )
+    assert delete_resp.status_code == 403
+    data = delete_resp.json()
+    assert data["detail"] == "You do not have permission to delete this interview answer."
+
+
+def test_delete_resume_analysis_owned_by_user_cascades_answers(client: TestClient):
+    # Create a user
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "delete_resume_owner@example.com", "full_name": "Delete Resume Owner"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    # Create a resume analysis
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Resume for delete resume owner. Backend dev with APIs and databases."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    analysis_id = resume_resp.json()["id"]
+
+    # Create two answers tied to that resume
+    for i in range(2):
+        answer_resp = client.post(
+            "/api/generate/answer",
+            headers={"X-User-Id": str(user_id)},
+            json={
+                "user_id": user_id,
+                "resume_analysis_id": analysis_id,
+                "question": f"Delete cascade question {i}?",
+                "job_title": "Backend Engineer",
+                "company_name": "Example Corp",
+            },
+        )
+        assert answer_resp.status_code == 201
+
+    # Delete the resume analysis as the owning user
+    delete_resp = client.delete(
+        f"/api/resume/{analysis_id}",
+        headers={"X-User-Id": str(user_id)},
+    )
+    assert delete_resp.status_code == 204
+
+    # Verify the resume analysis is gone
+    get_resume_resp = client.get(f"/api/resume/{analysis_id}")
+    assert get_resume_resp.status_code == 404
+
+    # Verify answers for this user no longer include those answers
+    list_answers_resp = client.get(f"/api/answers?user_id={user_id}")
+    assert list_answers_resp.status_code == 200
+    items = list_answers_resp.json()
+    assert all(item["resume_analysis_id"] != analysis_id for item in items)
+
+
+def test_delete_resume_analysis_forbidden_for_other_user(client: TestClient):
+    # Owner user
+    owner_resp = client.post(
+        "/api/users",
+        json={"email": "delete_resume_owner2@example.com", "full_name": "Delete Resume Owner 2"},
+    )
+    assert owner_resp.status_code == 201
+    owner_id = owner_resp.json()["id"]
+
+    # Other user
+    other_resp = client.post(
+        "/api/users",
+        json={"email": "delete_resume_other@example.com", "full_name": "Delete Resume Other"},
+    )
+    assert other_resp.status_code == 201
+    other_id = other_resp.json()["id"]
+
+    # Create resume for owner
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(owner_id)},
+        json={
+            "user_id": owner_id,
+            "resume_text": (
+                "Owner resume for delete forbidden test. Backend dev profile text."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    analysis_id = resume_resp.json()["id"]
+
+    # Attempt to delete as non-owner
+    delete_resp = client.delete(
+        f"/api/resume/{analysis_id}",
+        headers={"X-User-Id": str(other_id)},
+    )
+    assert delete_resp.status_code == 403
+    data = delete_resp.json()
+    assert data["detail"] == "You do not have permission to delete this resume analysis."
+
+
+def test_delete_resume_analysis_requires_auth(client: TestClient):
+    # Create a user and a resume analysis
+    user_resp = client.post(
+        "/api/users",
+        json={"email": "delete_resume_no_auth@example.com", "full_name": "Delete Resume No Auth"},
+    )
+    assert user_resp.status_code == 201
+    user_id = user_resp.json()["id"]
+
+    resume_resp = client.post(
+        "/api/resume/analyze",
+        headers={"X-User-Id": str(user_id)},
+        json={
+            "user_id": user_id,
+            "resume_text": (
+                "Resume for delete resume no-auth test. Backend dev experience text."
+            ),
+        },
+    )
+    assert resume_resp.status_code == 201
+    analysis_id = resume_resp.json()["id"]
+
+    # Try to delete without authentication header
+    delete_resp = client.delete(f"/api/resume/{analysis_id}")
+    assert delete_resp.status_code == 401
+    data = delete_resp.json()
+    assert data["detail"] == "Authentication required to delete resume analyses."

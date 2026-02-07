@@ -222,3 +222,69 @@ def list_answers_for_resume(
         )
         for a in answers
     ]
+
+
+@router.delete(
+    "/{analysis_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_resume_analysis(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> None:
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to delete resume analyses.",
+        )
+
+    analysis = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id)
+        .first()
+    )
+
+    if analysis is None:
+        logger.warning("resume analysis not found for delete id=%s", analysis_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume analysis not found.",
+        )
+
+    if analysis.user_id is not None and analysis.user_id != current_user.id:
+        logger.warning(
+            "forbidden delete resume analysis id=%s header_user_id=%s analysis_user_id=%s",
+            analysis_id,
+            current_user.id,
+            analysis.user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this resume analysis.",
+        )
+
+    try:
+        db.query(InterviewAnswer).filter(
+            InterviewAnswer.resume_analysis_id == analysis_id
+        ).delete(synchronize_session=False)
+        db.delete(analysis)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error(
+            "failed to delete resume analysis id=%s error=%s",
+            analysis_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete resume analysis.",
+        )
+
+    logger.info(
+        "deleted resume analysis id=%s user_id=%s",
+        analysis.id,
+        analysis.user_id,
+    )
+    return None
