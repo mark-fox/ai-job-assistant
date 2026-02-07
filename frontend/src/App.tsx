@@ -32,6 +32,14 @@ type InterviewAnswer = {
   provider: string;
 };
 
+type MetricsSummary = {
+  total_users: number;
+  total_resume_analyses: number;
+  total_answers: number;
+  user_resume_analyses: number | null;
+  user_answers: number | null;
+};
+
 function App() {
   const [appStatus, setAppStatus] = useState<StatusResponse | null>(null);
   const [appStatusError, setAppStatusError] = useState<string | null>(null);
@@ -62,6 +70,91 @@ function App() {
   const [deleteResumeLoading, setDeleteResumeLoading] = useState(false);
   const [deleteAnswerLoading, setDeleteAnswerLoading] = useState(false);
 
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+
+  const buildHeaders = (extra?: HeadersInit): HeadersInit => {
+    const base: HeadersInit = {};
+    if (currentUserId != null) {
+      base["X-User-Id"] = String(currentUserId);
+    }
+    return { ...base, ...(extra ?? {}) };
+  };
+
+  const ensureDemoUser = async () => {
+    // Try to reuse a stored demo user first
+    try {
+      const stored = window.localStorage.getItem("ai_job_assistant_user");
+      if (stored) {
+        const parsed = JSON.parse(stored) as { id: number };
+        if (typeof parsed.id === "number") {
+          setCurrentUserId(parsed.id);
+          return;
+        }
+      }
+    } catch {
+      // Ignore parse errors and fall through to create a new user
+    }
+
+    // Create a new demo user
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: `demo_${Date.now()}@example.com`,
+          full_name: "Demo User",
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to create demo user", await response.text());
+        return;
+      }
+
+      const data = await response.json();
+      if (typeof data.id === "number") {
+        setCurrentUserId(data.id);
+        window.localStorage.setItem(
+          "ai_job_assistant_user",
+          JSON.stringify({ id: data.id }),
+        );
+      }
+    } catch (error) {
+      console.error("Network error while creating demo user", error);
+    }
+  };
+
+  const fetchMetrics = async (userId: number) => {
+    setMetricsError(null);
+    setMetricsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/metrics/summary`, {
+        headers: {
+          "X-User-Id": String(userId),
+        },
+      });
+
+      if (!response.ok) {
+        setMetricsError("Failed to load metrics.");
+        return;
+      }
+
+      const data = (await response.json()) as MetricsSummary;
+      setMetrics(data);
+    } catch {
+      setMetricsError("Network error while fetching metrics.");
+    } finally {
+      setMetricsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchStatus = async () => {
       try {
@@ -79,6 +172,19 @@ function App() {
 
     fetchStatus();
   }, []);
+
+  useEffect(() => {
+    const initUser = async () => {
+      await ensureDemoUser();
+    };
+    void initUser();
+  }, []);
+
+  useEffect(() => {
+    if (currentUserId != null) {
+      void fetchMetrics(currentUserId);
+    }
+  }, [currentUserId]);
 
   const handleClearResume = () => {
     setResumeText("");
@@ -105,11 +211,11 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/resume/analyze`, {
         method: "POST",
-        headers: {
+        headers: buildHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({
-          user_id: null,
+          user_id: currentUserId,
           resume_text: resumeText,
         }),
       });
@@ -133,6 +239,11 @@ function App() {
         setResumeAnalysisId(data.id);
         await fetchAnswersForResume(data.id);
       }
+
+      if (currentUserId != null) {
+        void fetchMetrics(currentUserId);
+      }
+
     } catch (error) {
       setResumeError("Network error while analyzing resume.");
     } finally {
@@ -155,11 +266,11 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/generate/answer`, {
         method: "POST",
-        headers: {
+        headers: buildHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({
-          user_id: null,
+          user_id: currentUserId,
           resume_analysis_id: resumeAnalysisId,
           question,
           job_title: jobTitle || null,
@@ -192,6 +303,11 @@ function App() {
         setResumeAnalysisId(analysisIdFromResponse);
         await fetchAnswersForResume(analysisIdFromResponse);
       }
+
+      if (currentUserId != null) {
+        void fetchMetrics(currentUserId);
+      }
+
     } catch (error) {
       setAnswerError("Network error while generating answer.");
     } finally {
@@ -203,6 +319,9 @@ function App() {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/resume/${analysisId}/answers?limit=10&offset=0`,
+        {
+          headers: buildHeaders(),
+        },
       );
 
       if (!response.ok) {
@@ -247,6 +366,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/resume/${resumeAnalysisId}`, {
         method: "DELETE",
+        headers: buildHeaders(),
       });
 
       if (!response.ok) {
@@ -267,6 +387,11 @@ function App() {
       setResumeSummary(null);
       setResumeProvider(null);
       setResumeAnswers([]);
+
+      if (currentUserId != null) {
+        void fetchMetrics(currentUserId);
+      }
+
     } catch (error) {
       setResumeError("Network error while deleting resume analysis.");
     } finally {
@@ -281,6 +406,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/answers/${answerId}`, {
         method: "DELETE",
+        headers: buildHeaders(),
       });
 
       if (!response.ok) {
@@ -297,6 +423,10 @@ function App() {
       }
 
       setResumeAnswers((prev) => prev.filter((a) => a.id !== answerId));
+
+      if (currentUserId != null) {
+        void fetchMetrics(currentUserId);
+      }
     } catch (error) {
       setAnswerError("Network error while deleting answer.");
     } finally {
@@ -331,6 +461,27 @@ function App() {
             {!appStatus && !appStatusError && (
               <span className="text-xs text-slate-400">
                 Checking backend status…
+              </span>
+            )}
+
+            {metricsLoading && !metrics && (
+              <span className="text-[11px] text-slate-400">
+                Loading metrics…
+              </span>
+            )}
+            {metrics && (
+              <span className="text-[11px] text-slate-500">
+                Totals: {metrics.total_users} users •{" "}
+                {metrics.total_resume_analyses} resumes •{" "}
+                {metrics.total_answers} answers
+                <br />
+                You: {metrics.user_resume_analyses ?? 0} resumes •{" "}
+                {metrics.user_answers ?? 0} answers
+              </span>
+            )}
+            {metricsError && (
+              <span className="text-[11px] text-red-600">
+                {metricsError}
               </span>
             )}
           </div>
