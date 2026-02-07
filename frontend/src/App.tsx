@@ -32,7 +32,6 @@ type InterviewAnswer = {
   provider: string;
 };
 
-
 function App() {
   const [appStatus, setAppStatus] = useState<StatusResponse | null>(null);
   const [appStatusError, setAppStatusError] = useState<string | null>(null);
@@ -50,13 +49,18 @@ function App() {
   const [answerProvider, setAnswerProvider] = useState<string | null>(null);
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [analysisAnswers, setAnalysisAnswers] = useState<InterviewAnswer[]>([]);
+
   const [resumeAnalysisId, setResumeAnalysisId] = useState<number | null>(null);
   const [resumeAnswers, setResumeAnswers] = useState<
     { id: number; question: string; answer: string; provider: string; created_at: string | null }[]
   >([]);
   const [generatedAnswerCreatedAt, setGeneratedAnswerCreatedAt] = useState<string | null>(null);
+
+  const [deleteResumeLoading, setDeleteResumeLoading] = useState(false);
+  const [deleteAnswerLoading, setDeleteAnswerLoading] = useState(false);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -81,6 +85,8 @@ function App() {
     setResumeSummary(null);
     setResumeProvider(null);
     setResumeError(null);
+    setResumeAnalysisId(null);
+    setResumeAnswers([]);
   };
 
   const handleAnalyzeResume = async () => {
@@ -134,7 +140,6 @@ function App() {
     }
   };
 
-
   const handleGenerateAnswer = async () => {
     setAnswerError(null);
     setGeneratedAnswer(null);
@@ -155,7 +160,7 @@ function App() {
         },
         body: JSON.stringify({
           user_id: null,
-          resume_analysis_id: resumeAnalysisId, // use current analysis if available
+          resume_analysis_id: resumeAnalysisId,
           question,
           job_title: jobTitle || null,
           company_name: companyName || null,
@@ -178,7 +183,6 @@ function App() {
       setAnswerProvider(data.provider ?? null);
       setGeneratedAnswerCreatedAt(data.created_at ?? null);
 
-      // If this answer is tied to a resume, refresh that resume's answer list
       const analysisIdFromResponse =
         typeof data.resume_analysis_id === "number"
           ? data.resume_analysis_id
@@ -194,7 +198,6 @@ function App() {
       setAnswerLoading(false);
     }
   };
-
 
   const fetchAnswersForResume = async (analysisId: number) => {
     try {
@@ -228,14 +231,78 @@ function App() {
     answer: string;
     provider: string;
   }) => {
-    // Bring this answer back into the main answer display
     setGeneratedAnswer(answer.answer);
     setAnswerProvider(answer.provider);
-
-    // Optional but nice: repopulate the question field so you remember what you asked
     setQuestion(answer.question);
   };
 
+  const handleDeleteResumeAnalysis = async () => {
+    if (resumeAnalysisId == null) {
+      return;
+    }
+
+    setResumeError(null);
+    setDeleteResumeLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/resume/${resumeAnalysisId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setResumeError("Resume analysis was not found.");
+        } else if (response.status === 403) {
+          setResumeError("You do not have permission to delete this resume analysis.");
+        } else if (response.status === 401) {
+          setResumeError("Authentication is required to delete this resume analysis.");
+        } else {
+          setResumeError("Failed to delete resume analysis. Please try again.");
+        }
+        return;
+      }
+
+      // Clear analysis-related state on successful delete
+      setResumeAnalysisId(null);
+      setResumeSummary(null);
+      setResumeProvider(null);
+      setResumeAnswers([]);
+    } catch (error) {
+      setResumeError("Network error while deleting resume analysis.");
+    } finally {
+      setDeleteResumeLoading(false);
+    }
+  };
+
+  const handleDeleteAnswer = async (answerId: number) => {
+    setAnswerError(null);
+    setDeleteAnswerLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/answers/${answerId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setAnswerError("This answer was not found.");
+        } else if (response.status === 403) {
+          setAnswerError("You do not have permission to delete this answer.");
+        } else if (response.status === 401) {
+          setAnswerError("Authentication is required to delete answers.");
+        } else {
+          setAnswerError("Failed to delete answer. Please try again.");
+        }
+        return;
+      }
+
+      setResumeAnswers((prev) => prev.filter((a) => a.id !== answerId));
+    } catch (error) {
+      setAnswerError("Network error while deleting answer.");
+    } finally {
+      setDeleteAnswerLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-200 text-slate-950">
@@ -293,9 +360,17 @@ function App() {
               type="button"
               className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50"
               onClick={handleClearResume}
-              disabled={resumeLoading}
+              disabled={resumeLoading || deleteResumeLoading}
             >
               Clear
+            </button>
+            <button
+              type="button"
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:border-red-100 disabled:bg-red-50 disabled:text-red-300"
+              onClick={handleDeleteResumeAnalysis}
+              disabled={deleteResumeLoading || resumeAnalysisId == null}
+            >
+              {deleteResumeLoading ? "Deleting..." : "Delete analysis"}
             </button>
             <button
               type="button"
@@ -422,11 +497,10 @@ function App() {
             {resumeAnalysisId != null && resumeAnswers.length > 0 && (
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
                 {resumeAnswers.map((answer) => (
-                  <button
+                  <div
                     key={answer.id}
-                    type="button"
+                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white p-2 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50"
                     onClick={() => handleSelectResumeAnswer(answer)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-left shadow-sm transition hover:border-blue-400 hover:bg-blue-50"
                   >
                     <p className="text-xs font-semibold text-slate-700">
                       Q: {answer.question}
@@ -440,12 +514,24 @@ function App() {
                         <> • Created: {new Date(answer.created_at).toLocaleString()}</>
                       )}
                     </p>
-                  </button>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:border-red-100 disabled:bg-red-50 disabled:text-red-300"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAnswer(answer.id);
+                        }}
+                        disabled={deleteAnswerLoading}
+                      >
+                        {deleteAnswerLoading ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
-
         </section>
       </main>
     </div>
